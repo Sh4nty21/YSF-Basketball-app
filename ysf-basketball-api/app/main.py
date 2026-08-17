@@ -1,7 +1,10 @@
 """FastAPI application entry point.
 
-Run locally with:  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-Interactive docs:  http://localhost:8000/docs
+Run locally with:
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+Interactive docs:
+    http://localhost:8000/docs
 """
 
 from __future__ import annotations
@@ -10,7 +13,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -18,6 +20,7 @@ from app import __version__
 from app.config import settings
 from app.database import engine
 from app.routers import attendees, checkin, sessions, stats, teams
+
 
 DESCRIPTION = """
 Backend for the **Elevate YSF** weekly basketball fellowship.
@@ -30,6 +33,7 @@ Backend for the **Elevate YSF** weekly basketball fellowship.
 All team-balancing logic lives here, never in the app or the web form.
 """
 
+
 app = FastAPI(
     title=settings.app_name,
     version=__version__,
@@ -38,8 +42,11 @@ app = FastAPI(
     redoc_url=None,
 )
 
-# The check-in form runs in a browser on a different origin, so CORS matters.
-# Flutter on Android/iOS is unaffected, but Flutter Web during testing is not.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CORS
+# ─────────────────────────────────────────────────────────────────────────────
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -48,19 +55,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for router in (sessions.router, checkin.router, attendees.router, teams.router, stats.router):
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API ROUTERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+for router in (
+    sessions.router,
+    checkin.router,
+    attendees.router,
+    teams.router,
+    stats.router,
+):
     app.include_router(router, prefix=settings.api_prefix)
 
 
-@app.get("/health", tags=["meta"], summary="Liveness + database probe")
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTH CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get(
+    "/health",
+    tags=["meta"],
+    summary="Liveness + database probe",
+)
 def health() -> dict:
     """Used by Render/Railway health checks and by the app's connection banner."""
+
     database_ok = True
     error: str | None = None
+
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-    except Exception as exc:  # noqa: BLE001 - report any driver/network failure
+
+    except Exception as exc:  # noqa: BLE001
         database_ok = False
         error = str(exc).splitlines()[0][:200]
 
@@ -73,20 +102,57 @@ def health() -> dict:
     }
 
 
-@app.get("/", include_in_schema=False)
-def root() -> RedirectResponse:
-    return RedirectResponse(url="/docs")
+# ─────────────────────────────────────────────────────────────────────────────
+# PUBLIC CHECK-IN WEBSITE
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Dockerfile copies:
+#
+# /app/ysf-basketball-api/
+# /app/ysf-basketball-checkin/
+#
+# main.py lives at:
+#
+# /app/ysf-basketball-api/app/main.py
+#
+# Therefore parents[2] points to:
+#
+# /app
+#
+# and the check-in directory is:
+#
+# /app/ysf-basketball-checkin
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CHECKIN_DIR = (
+    Path(__file__).resolve().parents[2] / "ysf-basketball-checkin"
+)
 
 
-# ── Optional: serve the public check-in form from this same process ─────────
-# Module B stays a separate, independently testable folder (spec Section 3).
-# Mounting it here is purely hosting convenience: one deployment then serves
-# both the API and the page participants scan into, so nothing on the
-# organizer's own laptop has to stay switched on.
-_CHECKIN_DIR = Path(__file__).resolve().parents[2] / "ysf-basketball-checkin"
 if _CHECKIN_DIR.is_dir():
+
+    # Serve the public check-in website at the ROOT of the Render service.
+    #
+    # Therefore:
+    #
+    # https://ysf-basketball-app.onrender.com/
+    #
+    # opens the check-in page.
+    #
+    # And:
+    #
+    # https://ysf-basketball-app.onrender.com/?session=1
+    #
+    # opens the check-in page for session 1.
+    #
+    # The API still works because the API routes were registered above
+    # this catch-all static mount.
     app.mount(
-        "/checkin",
-        StaticFiles(directory=str(_CHECKIN_DIR), html=True),
+        "/",
+        StaticFiles(
+            directory=str(_CHECKIN_DIR),
+            html=True,
+        ),
         name="checkin-form",
     )
