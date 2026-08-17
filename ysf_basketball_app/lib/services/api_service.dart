@@ -1,0 +1,280 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../core/config/app_settings.dart';
+import '../core/errors/api_exception.dart';
+import '../models/attendee.dart';
+import '../models/enums.dart';
+import '../models/session.dart';
+import '../models/session_stats.dart';
+import '../models/team.dart';
+
+/// Every HTTP call to the backend lives here (spec Section 7).
+///
+/// This class is the app's ONLY door to the outside world. It does not decide
+/// anything about teams — `generateTeams` and `addLatePlayer` just relay the
+/// organizer's intent and return whatever the backend decided (spec Section 3:
+/// the app must never re-implement the balancing algorithm).
+class ApiService {
+  ApiService({required AppSettings settings, http.Client? client})
+      : _settings = settings,
+        _client = client ?? http.Client();
+
+  final AppSettings _settings;
+  final http.Client _client;
+
+  /// Generous enough for a free-tier server waking from sleep.
+  static const Duration _timeout = Duration(seconds: 20);
+
+  String get baseUrl => _settings.baseUrl;
+
+  void dispose() => _client.close();
+
+  // ── Sessions ────────────────────────────────────────────────────────────
+
+  /// `GET /sessions` — history, most recent first.
+  Future<List<Session>> fetchSessions() async {
+    final body = await _get('/sessions');
+    return _asList(body)
+        .map((json) => Session.fromJson(json))
+        .toList(growable: false);
+  }
+
+  /// `GET /sessions/{id}`
+  Future<Session> fetchSession(int sessionId) async {
+    return Session.fromJson(_asMap(await _get('/sessions/$sessionId')));
+  }
+
+  /// `POST /sessions`
+  Future<Session> createSession({
+    required DateTime date,
+    required TeamFormat format,
+    String? weekLabel,
+  }) async {
+    final body = await _post('/sessions', {
+      'session_date': _dateOnly(date),
+      'week_label': (weekLabel?.trim().isEmpty ?? true) ? null : weekLabel!.trim(),
+      'team_format': format.wire,
+    });
+    return Session.fromJson(_asMap(body));
+  }
+
+  /// `PATCH /sessions/{id}` — team format, status or label.
+  Future<Session> updateSession(
+    int sessionId, {
+    TeamFormat? format,
+    SessionStatus? status,
+    String? weekLabel,
+  }) async {
+    final payload = <String, dynamic>{
+      if (format != null) 'team_format': format.wire,
+      if (status != null) 'status': status.wire,
+      if (weekLabel != null) 'week_label': weekLabel.trim(),
+    };
+    final body = await _patch('/sessions/$sessionId', payload);
+    return Session.fromJson(_asMap(body));
+  }
+
+  // ── Attendees ───────────────────────────────────────────────────────────
+
+  /// `GET /sessions/{id}/attendees` — the live check-in list.
+  Future<List<Attendee>> fetchAttendees(int sessionId) async {
+    final body = await _get('/sessions/$sessionId/attendees');
+    return _asList(body)
+        .map((json) => Attendee.fromJson(json))
+        .toList(growable: false);
+  }
+
+  /// `GET /sessions/{id}/attendees/unassigned` — the late-player picker list.
+  Future<List<Attendee>> fetchUnassignedAttendees(int sessionId) async {
+    final body = await _get('/sessions/$sessionId/attendees/unassigned');
+    return _asList(body)
+        .map((json) => Attendee.fromJson(json))
+        .toList(growable: false);
+  }
+
+  /// `POST /sessions/{id}/attendees` — organizer manual entry (`source=manual`).
+  Future<Attendee> addAttendee(int sessionId, NewAttendee attendee) async {
+    final body = await _post('/sessions/$sessionId/attendees', attendee.toJson());
+    return Attendee.fromJson(_asMap(body));
+  }
+
+  // ── Teams ───────────────────────────────────────────────────────────────
+
+  /// `GET /sessions/{id}/teams`
+  Future<TeamsSnapshot> fetchTeams(int sessionId) async {
+    return TeamsSnapshot.fromJson(_asMap(await _get('/sessions/$sessionId/teams')));
+  }
+
+  /// `POST /sessions/{id}/teams/generate` — **destructive** full reshuffle.
+  /// Callers must confirm with the organizer first.
+  Future<TeamsSnapshot> generateTeams(int sessionId) async {
+    final body = await _post('/sessions/$sessionId/teams/generate', null);
+    return TeamsSnapshot.fromJson(_asMap(body));
+  }
+
+  /// `POST /sessions/{id}/teams/add-player` — slots one late arrival in.
+  Future<TeamsSnapshot> addLatePlayer(int sessionId, int attendeeId) async {
+    final body = await _post(
+      '/sessions/$sessionId/teams/add-player',
+      {'attendee_id': attendeeId},
+    );
+    return TeamsSnapshot.fromJson(_asMap(body));
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────
+
+  /// `GET /sessions/{id}/stats`
+  Future<SessionStats> fetchStats(int sessionId) async {
+    return SessionStats.fromJson(_asMap(await _get('/sessions/$sessionId/stats')));
+  }
+
+  // ── Health ──────────────────────────────────────────────────────────────
+
+  /// `GET /health` — used by the Settings screen's "Test connection" button.
+  /// Lives outside `/api/v1`, so the version prefix is stripped off.
+  Future<Map<String, dynamic>> checkHealth() async {
+    final root = baseUrl.replaceFirst(RegExp(r'/api/v\d+/?$'), '');
+    final uri = _parse('$root/health');
+    final response = await _send(() => _client.get(uri, headers: _headers));
+    return _asMap(_decode(response));
+  }
+
+  // ── Plumbing ────────────────────────────────────────────────────────────
+
+  Map<String, String> get _headers => {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (_settings.hasKey) 'X-Organizer-Key': _settings.organizerKey.trim(),
+      };
+
+  Uri _parse(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw ApiException.badUrl(url);
+    }
+    return uri;
+  }
+
+  Uri _uri(String path) => _parse('$baseUrl$path');
+
+  Future<dynamic> _get(String path) async {
+    final response = await _send(() => _client.get(_uri(path), headers: _headers));
+    return _decode(response);
+  }
+
+  Future<dynamic> _post(String path, Object? payload) async {
+    final response = await _send(
+      () => _client.post(
+        _uri(path),
+        headers: _headers,
+        body: payload == null ? null : jsonEncode(payload),
+      ),
+    );
+    return _decode(response);
+  }
+
+  Future<dynamic> _patch(String path, Object? payload) async {
+    final response = await _send(
+      () => _client.patch(
+        _uri(path),
+        headers: _headers,
+        body: payload == null ? null : jsonEncode(payload),
+      ),
+    );
+    return _decode(response);
+  }
+
+  /// Runs a request, converting transport failures into [ApiException].
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
+    try {
+      return await request().timeout(_timeout);
+    } on TimeoutException {
+      throw ApiException.timeout();
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      // SocketException, HandshakeException, ClientException, XHR failure...
+      // From the organizer's point of view these are all "cannot reach it".
+      throw ApiException.network();
+    }
+  }
+
+  /// Turns a response into decoded JSON, or the right [ApiException].
+  dynamic _decode(http.Response response) {
+    final status = response.statusCode;
+
+    if (status >= 200 && status < 300) {
+      if (response.body.isEmpty) return null;
+      try {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      } catch (_) {
+        throw ApiException.malformed();
+      }
+    }
+
+    final detail = _extractDetail(response);
+    switch (status) {
+      case 401:
+      case 403:
+        throw ApiException.unauthorized();
+      case 404:
+        throw ApiException.notFound(detail ?? 'That record');
+      case 409:
+        throw ApiException.conflict(detail ?? 'That action conflicts with the current state.');
+      case 422:
+        throw ApiException.validation(detail ?? 'Some details were rejected by the server.');
+      default:
+        if (status >= 500) throw ApiException.server(status);
+        throw ApiException(
+          detail ?? 'Unexpected response from the backend (HTTP $status).',
+          statusCode: status,
+        );
+    }
+  }
+
+  /// FastAPI puts errors in `detail`: a string for raised HTTPExceptions, or a
+  /// list of field errors for validation failures.
+  String? _extractDetail(http.Response response) {
+    if (response.body.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) return null;
+      final detail = decoded['detail'];
+
+      if (detail is String) return detail;
+      if (detail is List && detail.isNotEmpty) {
+        final messages = detail.whereType<Map<String, dynamic>>().map((item) {
+          final location = item['loc'];
+          final field = location is List && location.isNotEmpty
+              ? location.last.toString()
+              : 'input';
+          return '$field: ${item['msg']}';
+        });
+        if (messages.isNotEmpty) return messages.join('\n');
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> _asList(dynamic body) {
+    if (body is! List) throw ApiException.malformed();
+    return body.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  Map<String, dynamic> _asMap(dynamic body) {
+    if (body is! Map<String, dynamic>) throw ApiException.malformed();
+    return body;
+  }
+
+  /// The API expects a plain `YYYY-MM-DD` date, not a timestamp.
+  String _dateOnly(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+}

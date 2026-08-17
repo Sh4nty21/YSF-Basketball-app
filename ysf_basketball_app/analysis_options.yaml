@@ -1,0 +1,15 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - always_declare_return_types
+    - avoid_print
+    - unawaited_futures
+    - sort_child_properties_last
+
+analyzer:
+  errors:
+    # Treat unused code as an error so dead files get noticed early.
+    unused_import: error
+    unused_local_variable: error

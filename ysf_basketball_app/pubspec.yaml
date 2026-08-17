@@ -1,0 +1,43 @@
+name: ysf_basketball_app
+description: "Organizer tool for the Elevate YSF weekly basketball fellowship."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management — spec Section 7 recommends Provider or Riverpod for an MVP.
+  flutter_riverpod: ^2.6.1
+
+  # HTTP client for the backend (spec Section 7).
+  http: ^1.2.2
+
+  # Brand typography: Baloo 2 (display) + Inter (body) per spec Section 8.
+  google_fonts: ^6.2.1
+
+  # Shows the session QR code so participants can scan straight off the phone.
+  qr_flutter: ^4.1.0
+
+  # Date formatting for session labels.
+  intl: ^0.20.2
+
+  # Remembers the backend URL and organizer key between launches, so the
+  # backend address is configurable in-app instead of hard-coded.
+  shared_preferences: ^2.3.5
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/ysf-logo.jpg

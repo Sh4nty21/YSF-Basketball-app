@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFFFFF" />
+  <meta name="description" content="Check in to this week's Elevate YSF basketball session." />
+  <title>Check In · Elevate YSF Basketball</title>
+
+  <link rel="icon" href="assets/ysf-logo.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Faint basketball-court arc, echoing the brush stroke under "Elevate". -->
+  <svg class="court-mark" viewBox="0 0 400 200" aria-hidden="true" focusable="false">
+    <path d="M10 190 Q200 20 390 190" fill="none" stroke="currentColor" stroke-width="10"
+      stroke-linecap="round" />
+  </svg>
+
+  <main class="shell">
+    <header class="masthead">
+      <img class="logo" src="assets/ysf-logo.jpg"
+        alt="Elevate YSF" width="180" height="180" />
+      <h1 class="display">CHECK <span class="ink-accent">IN</span></h1>
+      <p class="subhead" id="sessionSubhead">Weekly Basketball Fellowship</p>
+    </header>
+
+    <!-- ── STATE 1: no session id in the URL ───────────────────────────── -->
+    <section class="card card--warn" id="noSessionCard" hidden>
+      <h2 class="card-title">Scan the QR code first</h2>
+      <p class="card-body">
+        This page needs to know which session you're joining. Please scan the QR
+        code the organizers put up, or ask them for the link.
+      </p>
+    </section>
+
+    <!-- ── STATE 2: the form ───────────────────────────────────────────── -->
+    <form class="card" id="checkinForm" novalidate hidden>
+      <div class="field">
+        <label class="label" for="name">Your name</label>
+        <input class="input" id="name" name="name" type="text" autocomplete="name"
+          placeholder="e.g. Miguel Santos" maxlength="100" required />
+        <p class="error" id="nameError" role="alert" hidden></p>
+      </div>
+
+      <div class="field">
+        <label class="label" for="age">Age</label>
+        <input class="input" id="age" name="age" type="number" inputmode="numeric"
+          placeholder="e.g. 14" min="4" max="19" required />
+        <p class="hint">Ages 4 to 19</p>
+        <p class="error" id="ageError" role="alert" hidden></p>
+      </div>
+
+      <fieldset class="field skill-field">
+        <legend class="label">How would you rate your game?</legend>
+        <div class="skill-grid">
+          <label class="skill-option">
+            <input type="radio" name="skill_level" value="beginner" required />
+            <span class="skill-body">
+              <span class="skill-name">Beginner</span>
+              <span class="skill-note">Still learning the ropes</span>
+            </span>
+          </label>
+          <label class="skill-option">
+            <input type="radio" name="skill_level" value="intermediate" />
+            <span class="skill-body">
+              <span class="skill-name">Intermediate</span>
+              <span class="skill-note">Comfortable in a real game</span>
+            </span>
+          </label>
+          <label class="skill-option skill-option--pro">
+            <input type="radio" name="skill_level" value="pro" />
+            <span class="skill-body">
+              <span class="skill-name">Pro</span>
+              <span class="skill-note">Bring me the ball</span>
+            </span>
+          </label>
+        </div>
+        <p class="error" id="skillError" role="alert" hidden></p>
+      </fieldset>
+
+      <button class="btn btn--primary" id="submitBtn" type="submit">
+        <span class="btn-label">I'm here — check me in</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+
+      <p class="error error--form" id="formError" role="alert" hidden></p>
+      <p class="fineprint">
+        Organizers use this only to build fair teams for today's games.
+      </p>
+    </form>
+
+    <!-- ── STATE 3: success ────────────────────────────────────────────── -->
+    <section class="card card--success" id="successCard" hidden>
+      <div class="tick" aria-hidden="true">
+        <svg viewBox="0 0 52 52" role="presentation">
+          <path d="M14 27.5 L22.5 36 L38 17" fill="none" stroke="currentColor"
+            stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <h2 class="card-title" id="successTitle">You're checked in!</h2>
+      <p class="card-body" id="successBody">See you on the court.</p>
+      <p class="card-body card-body--muted">
+        Wait for the organizers to call out the teams. No need to keep this page
+        open.
+      </p>
+      <button class="btn btn--ghost" id="anotherBtn" type="button">
+        Check in someone else
+      </button>
+    </section>
+
+    <footer class="footer">
+      <span id="footerBrand">Elevate YSF</span>
+      <span class="dot">•</span>
+      <span id="sessionTag">—</span>
+    </footer>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

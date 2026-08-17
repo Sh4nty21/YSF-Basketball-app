@@ -1,0 +1,60 @@
+"""Organizer attendee endpoints — manual add and the live check-in list."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session as DbSession
+
+from app.database import get_db
+from app.dependencies import get_existing_session
+from app.models import Session
+from app.presenters import attendee_to_schema
+from app.repositories import attendees_repo
+from app.schemas import AttendeeCreate, AttendeeRead
+from app.security import require_organizer
+
+router = APIRouter(
+    prefix="/sessions",
+    tags=["attendees"],
+    dependencies=[Depends(require_organizer)],
+)
+
+
+@router.post(
+    "/{session_id}/attendees",
+    response_model=AttendeeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_attendee(
+    payload: AttendeeCreate,
+    session: Session = Depends(get_existing_session),
+    db: DbSession = Depends(get_db),
+) -> AttendeeRead:
+    """Organizer backup entry — records ``source='manual'``.
+
+    Works on closed sessions too: an organizer may still need to correct the
+    record after check-in has been shut off.
+    """
+    attendee = attendees_repo.create(db, session.id, payload, source="manual")
+    db.refresh(attendee)
+    return attendee_to_schema(attendee)
+
+
+@router.get("/{session_id}/attendees", response_model=list[AttendeeRead])
+def list_attendees(
+    session: Session = Depends(get_existing_session),
+    db: DbSession = Depends(get_db),
+) -> list[AttendeeRead]:
+    """Live check-in list in arrival order, including team placement if any."""
+    attendees = attendees_repo.list_for_session(db, session.id)
+    return [attendee_to_schema(attendee) for attendee in attendees]
+
+
+@router.get("/{session_id}/attendees/unassigned", response_model=list[AttendeeRead])
+def list_unassigned_attendees(
+    session: Session = Depends(get_existing_session),
+    db: DbSession = Depends(get_db),
+) -> list[AttendeeRead]:
+    """Attendees not yet on a team — the "Add Late Player" picker list."""
+    attendees = attendees_repo.list_unassigned(db, session.id)
+    return [attendee_to_schema(attendee) for attendee in attendees]

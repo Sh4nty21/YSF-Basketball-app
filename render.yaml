@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Render.com blueprint — deploys the backend so nothing on your own machine
+#  has to stay switched on.
+#
+#  How to use:
+#    1. Push this repository to GitHub.
+#    2. Render dashboard -> New -> Blueprint -> pick the repo.
+#    3. Render reads this file and asks you for the values marked
+#       "sync: false" below (paste your Supabase connection strings).
+#
+#  Free-tier note: a free web service sleeps after ~15 minutes of no traffic
+#  and takes roughly 30-60 seconds to wake on the next request. That is fine
+#  for QR check-in (the first participant waits a moment), but if you want it
+#  instant on game day, open the URL a minute before the session starts, or
+#  move to the cheapest paid instance.
+# ═══════════════════════════════════════════════════════════════════════════
+services:
+  - type: web
+    name: ysf-basketball-api
+    runtime: python
+    plan: free
+    rootDir: ysf-basketball-api
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+      # Supabase "Connection pooling" URI, port 6543.
+      - key: DATABASE_URL
+        sync: false
+
+      # Supabase DIRECT connection, port 5432 (migrations only).
+      - key: MIGRATION_DATABASE_URL
+        sync: false
+
+      # Once deployed, set this to your own service URL + /checkin, e.g.
+      # https://ysf-basketball-api.onrender.com/checkin
+      - key: CHECKIN_BASE_URL
+        sync: false
+
+      # Optional: a long random string locks organizer endpoints. Put the same
+      # value in the Flutter app's Organizer Key field.
+      - key: ORGANIZER_API_KEY
+        sync: false
+
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: MIN_AGE
+        value: "4"
+      - key: MAX_AGE
+        value: "19"

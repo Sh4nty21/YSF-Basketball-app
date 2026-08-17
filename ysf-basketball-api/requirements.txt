@@ -1,0 +1,21 @@
+# ── YSF Basketball API — Python dependencies ─────────────────────────────
+# Install with:  pip install -r requirements.txt
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# ORM + migrations
+SQLAlchemy==2.0.36
+alembic==1.14.0
+
+# PostgreSQL driver (psycopg 3, binary wheels — no compiler needed on Windows)
+psycopg[binary]==3.2.3
+
+# Settings / validation
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# ── Test-only dependencies ───────────────────────────────────────────────
+pytest==8.3.4
+httpx==0.28.1

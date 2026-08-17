@@ -1,0 +1,343 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Module B — visual theme.
+
+   Design system (spec Section 8), colours sampled straight from the logo file:
+     ink    #1A1A1A  hand-drawn marker black
+     accent #D53125  the single red stroke through "ElevAte"
+     paper  #FFFFFF  the logo's background
+
+   Tone: streetball energy — heavy display type, chunky rounded corners,
+   generous spacing, exactly one accent colour used sparingly so it still
+   punches.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #55534f;
+  --ink-faint: #8b8884;
+  --accent: #d53125;          /* sampled from "YSF Logo.jpg" */
+  --accent-dark: #a8231a;
+  --accent-tint: #fdeceb;
+  --paper: #ffffff;
+  --surface: #f7f6f4;
+  --line: #e4e2de;
+
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+
+  --font-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --shadow-card: 0 18px 40px -24px rgba(26, 26, 26, 0.4);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* The logo's brush arc, huge and faint, sitting behind the content. */
+.court-mark {
+  position: fixed;
+  top: 8vh;
+  left: 50%;
+  width: 145vw;
+  max-width: 900px;
+  transform: translateX(-50%);
+  color: var(--ink);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom));
+}
+
+/* ── Masthead ─────────────────────────────────────────────────────────── */
+
+.masthead { text-align: center; margin-bottom: 26px; }
+
+.logo {
+  width: 168px;
+  height: auto;
+  /* The source logo is a JPG on white, so it blends into the page rather than
+     sitting in a visible box. */
+  mix-blend-mode: multiply;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 13vw, 3.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  margin: 2px 0 8px;
+  text-transform: uppercase;
+}
+
+/* One red word, mirroring the single red letter in the logo. */
+.ink-accent {
+  color: var(--accent);
+  position: relative;
+  display: inline-block;
+  transform: rotate(-3deg);
+}
+
+.subhead {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card--warn { border-color: var(--accent); background: var(--accent-tint); gap: 10px; }
+.card--success { align-items: center; text-align: center; gap: 12px; }
+
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.card-body { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--ink-soft); }
+.card-body--muted { font-size: 0.88rem; color: var(--ink-faint); }
+
+/* ── Form fields ──────────────────────────────────────────────────────── */
+
+.field { display: flex; flex-direction: column; gap: 8px; border: 0; margin: 0; padding: 0; }
+
+.label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  padding: 0;
+}
+
+.input {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  width: 100%;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.input::placeholder { color: var(--ink-faint); font-weight: 400; }
+
+.input:focus {
+  outline: none;
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.input:focus-visible { box-shadow: 0 0 0 4px var(--accent-tint); }
+
+.input[aria-invalid="true"] { border-color: var(--accent); background: var(--accent-tint); }
+
+/* Hide the number spinners — thumbs, not mouse wheels. */
+.input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.hint { margin: -2px 0 0; font-size: 0.82rem; color: var(--ink-faint); }
+
+.error { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+.error--form {
+  background: var(--accent-tint);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  line-height: 1.4;
+}
+
+/* ── Skill picker ─────────────────────────────────────────────────────── */
+
+.skill-field { gap: 10px; }
+.skill-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.skill-option { position: relative; display: block; cursor: pointer; }
+
+/* Keep the radio reachable by keyboard/screen readers, but invisible. */
+.skill-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.skill-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 13px 16px;
+  transition: all 0.15s ease;
+}
+
+.skill-name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+.skill-note { font-size: 0.84rem; color: var(--ink-soft); }
+
+.skill-option input:checked + .skill-body {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  transform: translateY(-1px);
+}
+
+.skill-option input:checked + .skill-body .skill-note { color: rgba(255, 255, 255, 0.75); }
+
+/* "Pro" is the one tier that gets the red treatment — same restraint as the
+   logo, which reddens exactly one letter. */
+.skill-option--pro input:checked + .skill-body {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+}
+
+.skill-option input:focus-visible + .skill-body { box-shadow: 0 0 0 4px var(--accent-tint); }
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+
+.btn {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.12rem;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-pill);
+  padding: 16px 24px;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  width: 100%;
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--paper);
+  box-shadow: 0 6px 0 0 var(--accent-dark);
+}
+
+.btn--primary:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 0 var(--accent-dark); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+  font-size: 1rem;
+  min-height: 50px;
+}
+
+.btn--ghost:active { transform: translateY(2px); }
+
+.btn:disabled { opacity: 0.65; cursor: progress; }
+
+/* ── Loading spinner ──────────────────────────────────────────────────── */
+
+.spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.45);
+  border-top-color: var(--paper);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.btn.is-loading .spinner { display: inline-block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Success tick ─────────────────────────────────────────────────────── */
+
+.tick {
+  width: 74px;
+  height: 74px;
+  color: var(--paper);
+  background: var(--accent);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  animation: pop 0.32s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+
+.tick svg { width: 46px; height: 46px; }
+
+@keyframes pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+
+.footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.footer .dot { margin: 0 6px; }
+
+.fineprint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  text-align: center;
+  line-height: 1.45;
+}
+
+/* ── Accessibility / motion ───────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
