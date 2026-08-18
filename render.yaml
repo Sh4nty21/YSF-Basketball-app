@@ -48,6 +48,6 @@ services:
       - key: CORS_ORIGINS
         value: "*"
       - key: MIN_AGE
-        value: "4"
+        value: "13"
       - key: MAX_AGE
-        value: "19"
+        value: "22"

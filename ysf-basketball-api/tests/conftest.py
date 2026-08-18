@@ -12,8 +12,8 @@ import os
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["MIGRATION_DATABASE_URL"] = ""
 os.environ["ORGANIZER_API_KEY"] = ""
-os.environ["MIN_AGE"] = "4"
-os.environ["MAX_AGE"] = "19"
+os.environ["MIN_AGE"] = "13"
+os.environ["MAX_AGE"] = "22"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

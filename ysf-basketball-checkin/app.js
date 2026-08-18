@@ -11,8 +11,8 @@
   "use strict";
 
   var CONFIG = window.YSF_CONFIG || {};
-  var MIN_AGE = 4;
-  var MAX_AGE = 19;
+  var MIN_AGE = 13;
+  var MAX_AGE = 22;
 
   /* ── API base ──────────────────────────────────────────────────────────
      Empty config -> assume the backend serves this page (it mounts the form

@@ -56,8 +56,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "*"
 
-    min_age: int = 4
-    max_age: int = 19
+    min_age: int = 13
+    max_age: int = 22
 
     # Empty string == organizer endpoints are open (MVP default, spec §2).
     organizer_api_key: str = ""
