@@ -33,6 +33,12 @@ def get(db: DbSession, attendee_id: int) -> Attendee | None:
     return db.get(Attendee, attendee_id)
 
 
+def delete(db: DbSession, attendee: Attendee) -> None:
+    """Delete an attendee registration from the current session."""
+    db.delete(attendee)
+    db.commit()
+
+
 def list_for_session(db: DbSession, session_id: int) -> list[Attendee]:
     """Live check-in list, newest last (arrival order)."""
     stmt = (
@@ -46,10 +52,17 @@ def list_for_session(db: DbSession, session_id: int) -> list[Attendee]:
 
 def list_unassigned(db: DbSession, session_id: int) -> list[Attendee]:
     """Attendees with no ``team_members`` row yet — i.e. late arrivals."""
-    assigned = select(TeamMember.attendee_id).join(Team).where(Team.session_id == session_id)
+    assigned = (
+        select(TeamMember.attendee_id)
+        .join(Team)
+        .where(Team.session_id == session_id)
+    )
     stmt = (
         select(Attendee)
-        .where(Attendee.session_id == session_id, Attendee.id.not_in(assigned))
+        .where(
+            Attendee.session_id == session_id,
+            Attendee.id.not_in(assigned),
+        )
         .order_by(Attendee.checked_in_at.asc(), Attendee.id.asc())
     )
     return list(db.scalars(stmt))

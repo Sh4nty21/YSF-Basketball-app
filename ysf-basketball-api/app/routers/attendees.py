@@ -1,4 +1,4 @@
-"""Organizer attendee endpoints — manual add and the live check-in list."""
+"""Organizer attendee endpoints — manual add, live check-in list, and deletion."""
 
 from __future__ import annotations
 
@@ -58,3 +58,27 @@ def list_unassigned_attendees(
     """Attendees not yet on a team — the "Add Late Player" picker list."""
     attendees = attendees_repo.list_unassigned(db, session.id)
     return [attendee_to_schema(attendee) for attendee in attendees]
+
+
+@router.delete(
+    "/{session_id}/attendees/{attendee_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_attendee(
+    attendee_id: int,
+    session: Session = Depends(get_existing_session),
+    db: DbSession = Depends(get_db),
+) -> None:
+    """Organizer can remove a duplicate or incorrect registration."""
+
+    attendee = attendees_repo.get(db, attendee_id)
+
+    if attendee is None or attendee.session_id != session.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attendee not found in this session.",
+        )
+
+    attendees_repo.delete(db, attendee)
+
+    return None
