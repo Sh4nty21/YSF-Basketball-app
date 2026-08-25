@@ -30,45 +30,55 @@ def add_attendee(
     session: Session = Depends(get_existing_session),
     db: DbSession = Depends(get_db),
 ) -> AttendeeRead:
-    """Organizer backup entry — records ``source='manual'``.
+    """Organizer backup entry — records source='manual'."""
 
-    Works on closed sessions too: an organizer may still need to correct the
-    record after check-in has been shut off.
-    """
-    attendee = attendees_repo.create(db, session.id, payload, source="manual")
+    attendee = attendees_repo.create(
+        db,
+        session.id,
+        payload,
+        source="manual",
+    )
     db.refresh(attendee)
     return attendee_to_schema(attendee)
 
 
-@router.get("/{session_id}/attendees", response_model=list[AttendeeRead])
+@router.get(
+    "/{session_id}/attendees",
+    response_model=list[AttendeeRead],
+)
 def list_attendees(
     session: Session = Depends(get_existing_session),
     db: DbSession = Depends(get_db),
 ) -> list[AttendeeRead]:
     """Live check-in list in arrival order, including team placement if any."""
+
     attendees = attendees_repo.list_for_session(db, session.id)
     return [attendee_to_schema(attendee) for attendee in attendees]
 
 
-@router.get("/{session_id}/attendees/unassigned", response_model=list[AttendeeRead])
+@router.get(
+    "/{session_id}/attendees/unassigned",
+    response_model=list[AttendeeRead],
+)
 def list_unassigned_attendees(
     session: Session = Depends(get_existing_session),
     db: DbSession = Depends(get_db),
 ) -> list[AttendeeRead]:
-    """Attendees not yet on a team — the "Add Late Player" picker list."""
+    """Attendees not yet on a team — the Add Late Player picker list."""
+
     attendees = attendees_repo.list_unassigned(db, session.id)
     return [attendee_to_schema(attendee) for attendee in attendees]
 
 
 @router.delete(
     "/{session_id}/attendees/{attendee_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
 )
 def delete_attendee(
     attendee_id: int,
     session: Session = Depends(get_existing_session),
     db: DbSession = Depends(get_db),
-) -> None:
+) -> dict[str, str]:
     """Organizer can remove a duplicate or incorrect registration."""
 
     attendee = attendees_repo.get(db, attendee_id)
@@ -81,4 +91,4 @@ def delete_attendee(
 
     attendees_repo.delete(db, attendee)
 
-    return None
+    return {"message": "Attendee deleted successfully."}
