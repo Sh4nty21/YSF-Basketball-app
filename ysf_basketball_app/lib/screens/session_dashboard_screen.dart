@@ -53,12 +53,13 @@ class SessionDashboardScreen extends ConsumerWidget {
       body: switch (session) {
         AsyncLoading() => const LoadingView(message: 'Loading session…'),
         AsyncError(:final error) => ErrorView(
-            error: error,
-            onRetry: () => ref.read(sessionProvider(sessionId).notifier).refresh(),
-            onOpenSettings: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
+          error: error,
+          onRetry: () =>
+              ref.read(sessionProvider(sessionId).notifier).refresh(),
+          onOpenSettings: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+        ),
         AsyncData(:final value) => _Dashboard(session: value),
         _ => const LoadingView(message: 'Loading session…'),
       },
@@ -88,7 +89,8 @@ class _DashboardState extends ConsumerState<_Dashboard> {
   Future<void> _generateTeams(List<Attendee> attendees) async {
     final teams = ref.read(teamsProvider(_sessionId)).valueOrNull;
     final hasExisting = teams?.hasTeams ?? false;
-    final lateAdds = teams?.teams
+    final lateAdds =
+        teams?.teams
             .expand((team) => team.members)
             .where((member) => member.isLateAdd)
             .length ??
@@ -100,10 +102,10 @@ class _DashboardState extends ConsumerState<_Dashboard> {
       title: hasExisting ? 'Reshuffle all teams?' : 'Generate teams?',
       message: hasExisting
           ? 'This rebuilds every team from scratch for all '
-              '${attendees.length} players.'
-              '${lateAdds > 0 ? ' The $lateAdds late add${lateAdds == 1 ? '' : 's'} you placed by hand will be shuffled back in.' : ''}'
+                '${attendees.length} players.'
+                '${lateAdds > 0 ? ' The $lateAdds late add${lateAdds == 1 ? '' : 's'} you placed by hand will be shuffled back in.' : ''}'
           : 'The backend will snake-draft all ${attendees.length} players into '
-              'balanced ${widget.session.format.label} teams.',
+                'balanced ${widget.session.format.label} teams.',
       confirmLabel: hasExisting ? 'Yes, reshuffle' : 'Generate teams',
       icon: Icons.shuffle_rounded,
       destructive: hasExisting,
@@ -148,7 +150,7 @@ class _DashboardState extends ConsumerState<_Dashboard> {
       title: closing ? 'Close check-in?' : 'Re-open check-in?',
       message: closing
           ? 'The QR form will stop accepting new players. You can still add '
-              'people manually, and you can re-open it any time.'
+                'people manually, and you can re-open it any time.'
           : 'Participants scanning the QR code will be able to check in again.',
       confirmLabel: closing ? 'Close check-in' : 'Re-open check-in',
       icon: closing ? Icons.lock_rounded : Icons.lock_open_rounded,
@@ -159,11 +161,13 @@ class _DashboardState extends ConsumerState<_Dashboard> {
     if (!confirmed || !mounted) return;
 
     try {
-      await ref.read(sessionProvider(_sessionId).notifier).setStatus(
-            closing ? SessionStatus.closed : SessionStatus.open,
-          );
+      await ref
+          .read(sessionProvider(_sessionId).notifier)
+          .setStatus(closing ? SessionStatus.closed : SessionStatus.open);
       if (mounted) {
-        context.showSuccess(closing ? 'Check-in closed.' : 'Check-in re-opened.');
+        context.showSuccess(
+          closing ? 'Check-in closed.' : 'Check-in re-opened.',
+        );
       }
     } catch (error) {
       if (mounted) context.showFailure(error);
@@ -219,7 +223,9 @@ class _DashboardState extends ConsumerState<_Dashboard> {
 
           // ── Actions ─────────────────────────────────────────────────────
           YsfPrimaryButton(
-            label: (teams?.hasTeams ?? false) ? 'Reshuffle teams' : 'Generate teams',
+            label: (teams?.hasTeams ?? false)
+                ? 'Reshuffle teams'
+                : 'Generate teams',
             busyLabel: 'Drafting…',
             icon: Icons.shuffle_rounded,
             isBusy: _generating,
@@ -306,32 +312,67 @@ class _DashboardState extends ConsumerState<_Dashboard> {
           ),
           switch (attendees) {
             AsyncError(:final error) when list.isEmpty => Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppDimens.lg),
-                child: ErrorView(
-                  error: error,
-                  onRetry: _attendees.refresh,
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(vertical: AppDimens.lg),
+              child: ErrorView(error: error, onRetry: _attendees.refresh),
+            ),
             AsyncLoading() when list.isEmpty => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppDimens.xxl),
-                child: LoadingView(message: 'Loading check-ins…'),
-              ),
+              padding: EdgeInsets.symmetric(vertical: AppDimens.xxl),
+              child: LoadingView(message: 'Loading check-ins…'),
+            ),
             _ when list.isEmpty => const _NoAttendeesYet(),
             _ => StickerCard(
-                padding: const EdgeInsets.symmetric(vertical: AppDimens.xs),
-                child: Column(
-                  children: [
-                    for (var index = 0; index < list.length; index++) ...[
-                      if (index > 0)
-                        const Divider(indent: AppDimens.md, endIndent: AppDimens.md),
-                      AttendeeListTile(
-                        attendee: list[index],
-                        index: index + 1,
+              padding: const EdgeInsets.symmetric(vertical: AppDimens.xs),
+              child: Column(
+                children: [
+                  for (var index = 0; index < list.length; index++) ...[
+                    if (index > 0)
+                      const Divider(
+                        indent: AppDimens.md,
+                        endIndent: AppDimens.md,
                       ),
-                    ],
+                    AttendeeListTile(
+                      attendee: list[index],
+                      index: index + 1,
+                      trailing: IconButton(
+                        tooltip: 'Delete attendee',
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 22,
+                        ),
+                        onPressed: () async {
+                          final attendee = list[index];
+
+                          final confirmed = await showConfirmDialog(
+                            context,
+                            title: 'Delete attendee?',
+                            message: 'Remove ${attendee.name} from this session?',
+                            confirmLabel: 'Delete',
+                            icon: Icons.delete_outline_rounded,
+                            destructive: true,
+                          );
+
+                          if (!confirmed || !mounted) return;
+
+                          try {
+                            await _attendees.deleteAttendee(attendee.id);
+
+                            if (!mounted || !context.mounted) return;
+
+                            context.showSuccess(
+                              '${attendee.name} was removed.',
+                            );
+                          } catch (error) {
+                            if (!mounted || !context.mounted) return;
+
+                            context.showFailure(error);
+                          }
+                        },
+                      ), // IconButton
+                    ), // AttendeeListTile
                   ],
-                ),
+                ],
               ),
+            ),
           },
         ],
       ),
@@ -390,7 +431,10 @@ class _StatusPill extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppDimens.md, vertical: 6),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimens.md,
+          vertical: 6,
+        ),
         decoration: BoxDecoration(
           color: isOpen ? AppColors.accentTint : AppColors.surface,
           borderRadius: BorderRadius.circular(AppDimens.radiusPill),
@@ -411,10 +455,10 @@ class _StatusPill extends StatelessWidget {
             Text(
               isOpen ? 'CHECK-IN OPEN' : 'CLOSED',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isOpen ? AppColors.accent : AppColors.inkFaint,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: isOpen ? AppColors.accent : AppColors.inkFaint,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),
@@ -525,7 +569,10 @@ class _TierCount extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 5),
-            Text('$count', style: theme.textTheme.titleLarge?.copyWith(fontSize: 17)),
+            Text(
+              '$count',
+              style: theme.textTheme.titleLarge?.copyWith(fontSize: 17),
+            ),
           ],
         ),
         Text(
@@ -579,10 +626,10 @@ class _LiveDotState extends State<_LiveDot>
         Text(
           'LIVE',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.accent,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
+            color: AppColors.accent,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ],
     );
@@ -608,17 +655,20 @@ class _UnassignedNudge extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.hourglass_bottom_rounded,
-              color: AppColors.accent, size: 20),
+          const Icon(
+            Icons.hourglass_bottom_rounded,
+            color: AppColors.accent,
+            size: 20,
+          ),
           const SizedBox(width: AppDimens.sm),
           Expanded(
             child: Text(
               '$count player${count == 1 ? '' : 's'} not on a team yet — tap to slot '
               'them in.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.ink,
-                    fontSize: 13,
-                  ),
+                color: AppColors.ink,
+                fontSize: 13,
+              ),
             ),
           ),
           const Icon(Icons.chevron_right_rounded, color: AppColors.accent),
@@ -643,8 +693,11 @@ class _NoAttendeesYet extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.qr_code_scanner_rounded,
-              size: 34, color: AppColors.inkFaint),
+          const Icon(
+            Icons.qr_code_scanner_rounded,
+            size: 34,
+            color: AppColors.inkFaint,
+          ),
           const SizedBox(height: AppDimens.sm),
           Text(
             'Waiting for the first check-in',

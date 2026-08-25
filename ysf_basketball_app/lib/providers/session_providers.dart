@@ -107,9 +107,14 @@ class AttendeeListController
   /// next tick will try again.
   Future<void> _poll() async {
     if (!_polling) return;
+
     try {
-      final attendees = await ref.read(apiServiceProvider).fetchAttendees(arg);
-      if (_timer?.isActive ?? false) state = AsyncValue.data(attendees);
+      final attendees =
+          await ref.read(apiServiceProvider).fetchAttendees(arg);
+
+      if (_timer?.isActive ?? false) {
+        state = AsyncValue.data(attendees);
+      }
     } catch (_) {
       // Keep showing the last good list.
     }
@@ -125,13 +130,29 @@ class AttendeeListController
   /// Pause polling while a dialog or another screen is in front, so a refresh
   /// cannot yank the list out from under the organizer mid-tap.
   void pausePolling() => _polling = false;
+
   void resumePolling() => _polling = true;
 
   /// Organizer manual entry, then immediate refresh.
   Future<Attendee> addAttendee(NewAttendee attendee) async {
-    final created = await ref.read(apiServiceProvider).addAttendee(arg, attendee);
+    final created =
+        await ref.read(apiServiceProvider).addAttendee(arg, attendee);
+
     await refresh();
     return created;
+  }
+
+  /// Organizer removes a duplicate or incorrect registration.
+  ///
+  /// The attendee is deleted from the backend and the live list is
+  /// immediately refreshed so the UI reflects the change.
+  Future<void> deleteAttendee(int attendeeId) async {
+    await ref.read(apiServiceProvider).deleteAttendee(
+          arg,
+          attendeeId,
+        );
+
+    await refresh();
   }
 }
 

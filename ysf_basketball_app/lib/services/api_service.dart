@@ -18,13 +18,14 @@ import '../models/team.dart';
 /// organizer's intent and return whatever the backend decided (spec Section 3:
 /// the app must never re-implement the balancing algorithm).
 class ApiService {
-  ApiService({required AppSettings settings, http.Client? client})
-      : _settings = settings,
-        _client = client ?? http.Client();
+  ApiService({
+    required this._settings,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
 
   final AppSettings _settings;
   final http.Client _client;
-
+  
   /// Generous enough for a free-tier server waking from sleep.
   static const Duration _timeout = Duration(seconds: 20);
 
@@ -55,7 +56,8 @@ class ApiService {
   }) async {
     final body = await _post('/sessions', {
       'session_date': _dateOnly(date),
-      'week_label': (weekLabel?.trim().isEmpty ?? true) ? null : weekLabel!.trim(),
+      'week_label':
+          (weekLabel?.trim().isEmpty ?? true) ? null : weekLabel!.trim(),
       'team_format': format.wire,
     });
     return Session.fromJson(_asMap(body));
@@ -96,16 +98,33 @@ class ApiService {
   }
 
   /// `POST /sessions/{id}/attendees` — organizer manual entry (`source=manual`).
-  Future<Attendee> addAttendee(int sessionId, NewAttendee attendee) async {
-    final body = await _post('/sessions/$sessionId/attendees', attendee.toJson());
+  Future<Attendee> addAttendee(
+    int sessionId,
+    NewAttendee attendee,
+  ) async {
+    final body =
+        await _post('/sessions/$sessionId/attendees', attendee.toJson());
     return Attendee.fromJson(_asMap(body));
+  }
+
+  /// `DELETE /sessions/{id}/attendees/{attendeeId}`
+  ///
+  /// Removes a duplicate or incorrect registration.
+  /// The backend verifies that the attendee belongs to the specified session.
+  Future<void> deleteAttendee(
+    int sessionId,
+    int attendeeId,
+  ) async {
+    await _delete('/sessions/$sessionId/attendees/$attendeeId');
   }
 
   // ── Teams ───────────────────────────────────────────────────────────────
 
   /// `GET /sessions/{id}/teams`
   Future<TeamsSnapshot> fetchTeams(int sessionId) async {
-    return TeamsSnapshot.fromJson(_asMap(await _get('/sessions/$sessionId/teams')));
+    return TeamsSnapshot.fromJson(
+      _asMap(await _get('/sessions/$sessionId/teams')),
+    );
   }
 
   /// `POST /sessions/{id}/teams/generate` — **destructive** full reshuffle.
@@ -116,7 +135,10 @@ class ApiService {
   }
 
   /// `POST /sessions/{id}/teams/add-player` — slots one late arrival in.
-  Future<TeamsSnapshot> addLatePlayer(int sessionId, int attendeeId) async {
+  Future<TeamsSnapshot> addLatePlayer(
+    int sessionId,
+    int attendeeId,
+  ) async {
     final body = await _post(
       '/sessions/$sessionId/teams/add-player',
       {'attendee_id': attendeeId},
@@ -124,11 +146,13 @@ class ApiService {
     return TeamsSnapshot.fromJson(_asMap(body));
   }
 
-  // ── Stats ───────────────────────────────────────────────────────────────
+  // ── Stats ──────────────────────────────────────────────────────────────
 
   /// `GET /sessions/{id}/stats`
   Future<SessionStats> fetchStats(int sessionId) async {
-    return SessionStats.fromJson(_asMap(await _get('/sessions/$sessionId/stats')));
+    return SessionStats.fromJson(
+      _asMap(await _get('/sessions/$sessionId/stats')),
+    );
   }
 
   // ── Health ──────────────────────────────────────────────────────────────
@@ -138,7 +162,8 @@ class ApiService {
   Future<Map<String, dynamic>> checkHealth() async {
     final root = baseUrl.replaceFirst(RegExp(r'/api/v\d+/?$'), '');
     final uri = _parse('$root/health');
-    final response = await _send(() => _client.get(uri, headers: _headers));
+    final response =
+        await _send(() => _client.get(uri, headers: _headers));
     return _asMap(_decode(response));
   }
 
@@ -147,7 +172,8 @@ class ApiService {
   Map<String, String> get _headers => {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        if (_settings.hasKey) 'X-Organizer-Key': _settings.organizerKey.trim(),
+        if (_settings.hasKey)
+          'X-Organizer-Key': _settings.organizerKey.trim(),
       };
 
   Uri _parse(String url) {
@@ -161,7 +187,8 @@ class ApiService {
   Uri _uri(String path) => _parse('$baseUrl$path');
 
   Future<dynamic> _get(String path) async {
-    final response = await _send(() => _client.get(_uri(path), headers: _headers));
+    final response =
+        await _send(() => _client.get(_uri(path), headers: _headers));
     return _decode(response);
   }
 
@@ -187,8 +214,23 @@ class ApiService {
     return _decode(response);
   }
 
+  /// `DELETE` request.
+  ///
+  /// The backend returns HTTP 204 No Content when deletion succeeds.
+  Future<dynamic> _delete(String path) async {
+    final response = await _send(
+      () => _client.delete(
+        _uri(path),
+        headers: _headers,
+      ),
+    );
+    return _decode(response);
+  }
+
   /// Runs a request, converting transport failures into [ApiException].
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  Future<http.Response> _send(
+    Future<http.Response> Function() request,
+  ) async {
     try {
       return await request().timeout(_timeout);
     } on TimeoutException {
@@ -223,9 +265,13 @@ class ApiService {
       case 404:
         throw ApiException.notFound(detail ?? 'That record');
       case 409:
-        throw ApiException.conflict(detail ?? 'That action conflicts with the current state.');
+        throw ApiException.conflict(
+          detail ?? 'That action conflicts with the current state.',
+        );
       case 422:
-        throw ApiException.validation(detail ?? 'Some details were rejected by the server.');
+        throw ApiException.validation(
+          detail ?? 'Some details were rejected by the server.',
+        );
       default:
         if (status >= 500) throw ApiException.server(status);
         throw ApiException(
@@ -239,22 +285,33 @@ class ApiService {
   /// list of field errors for validation failures.
   String? _extractDetail(http.Response response) {
     if (response.body.isEmpty) return null;
+
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+
       if (decoded is! Map<String, dynamic>) return null;
+
       final detail = decoded['detail'];
 
       if (detail is String) return detail;
+
       if (detail is List && detail.isNotEmpty) {
-        final messages = detail.whereType<Map<String, dynamic>>().map((item) {
+        final messages =
+            detail.whereType<Map<String, dynamic>>().map((item) {
           final location = item['loc'];
+
           final field = location is List && location.isNotEmpty
               ? location.last.toString()
               : 'input';
+
           return '$field: ${item['msg']}';
         });
-        if (messages.isNotEmpty) return messages.join('\n');
+
+        if (messages.isNotEmpty) {
+          return messages.join('\n');
+        }
       }
+
       return null;
     } catch (_) {
       return null;
@@ -263,11 +320,17 @@ class ApiService {
 
   List<Map<String, dynamic>> _asList(dynamic body) {
     if (body is! List) throw ApiException.malformed();
-    return body.whereType<Map<String, dynamic>>().toList(growable: false);
+
+    return body
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
   }
 
   Map<String, dynamic> _asMap(dynamic body) {
-    if (body is! Map<String, dynamic>) throw ApiException.malformed();
+    if (body is! Map<String, dynamic>) {
+      throw ApiException.malformed();
+    }
+
     return body;
   }
 
@@ -275,6 +338,7 @@ class ApiService {
   String _dateOnly(DateTime date) {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
+
     return '${date.year}-$month-$day';
   }
 }

@@ -9,7 +9,7 @@ import 'skill_level_badge.dart';
 /// One row in the live check-in list.
 ///
 /// Shows the initial, name, age, how they checked in (QR vs organizer), their
-/// skill badge, and their team once one is assigned.
+/// skill badge, their team, and an optional delete action.
 class AttendeeListTile extends StatelessWidget {
   const AttendeeListTile({
     super.key,
@@ -17,6 +17,7 @@ class AttendeeListTile extends StatelessWidget {
     required this.index,
     this.onTap,
     this.trailing,
+    this.onDelete,
   });
 
   final Attendee attendee;
@@ -25,11 +26,17 @@ class AttendeeListTile extends StatelessWidget {
   final int index;
 
   final VoidCallback? onTap;
+
+  /// Optional widget supplied by the parent.
   final Widget? trailing;
+
+  /// Called when the organizer wants to delete this registration.
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final content = Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppDimens.md,
@@ -37,8 +44,13 @@ class AttendeeListTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _ArrivalMarker(index: index, level: attendee.skillLevel),
+          _ArrivalMarker(
+            index: index,
+            level: attendee.skillLevel,
+          ),
+
           const SizedBox(width: AppDimens.md),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,11 +61,18 @@ class AttendeeListTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+
                 const SizedBox(height: 2),
+
                 Row(
                   children: [
-                    Text('Age ${attendee.age}', style: theme.textTheme.bodySmall),
+                    Text(
+                      'Age ${attendee.age}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+
                     const _Dot(),
+
                     Icon(
                       attendee.source == AttendeeSource.qr
                           ? Icons.qr_code_2_rounded
@@ -61,16 +80,22 @@ class AttendeeListTile extends StatelessWidget {
                       size: 13,
                       color: AppColors.inkFaint,
                     ),
+
                     const SizedBox(width: 3),
+
                     Flexible(
                       child: Text(
-                        attendee.source == AttendeeSource.qr ? 'Scanned in' : 'Added',
+                        attendee.source == AttendeeSource.qr
+                            ? 'Scanned in'
+                            : 'Added',
                         style: theme.textTheme.bodySmall,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+
                     if (attendee.teamName != null) ...[
                       const _Dot(),
+
                       Flexible(
                         child: Text(
                           attendee.teamName!,
@@ -87,8 +112,29 @@ class AttendeeListTile extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(width: AppDimens.sm),
-          SkillLevelBadge(level: attendee.skillLevel, compact: true),
+
+          SkillLevelBadge(
+            level: attendee.skillLevel,
+            compact: true,
+          ),
+
+          // Delete button.
+          if (onDelete != null) ...[
+            const SizedBox(width: AppDimens.xs),
+
+            IconButton(
+              onPressed: onDelete,
+              tooltip: 'Delete registration',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 21,
+              ),
+            ),
+          ],
+
+          // Existing trailing widget, if the parent supplies one.
           if (trailing != null) ...[
             const SizedBox(width: AppDimens.xs),
             trailing!,
@@ -98,6 +144,7 @@ class AttendeeListTile extends StatelessWidget {
     );
 
     if (onTap == null) return content;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimens.radiusMd),
@@ -108,7 +155,10 @@ class AttendeeListTile extends StatelessWidget {
 
 /// Arrival number in a circle tinted by skill tier.
 class _ArrivalMarker extends StatelessWidget {
-  const _ArrivalMarker({required this.index, required this.level});
+  const _ArrivalMarker({
+    required this.index,
+    required this.level,
+  });
 
   final int index;
   final SkillLevel level;
@@ -116,6 +166,7 @@ class _ArrivalMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = SkillLevelBadge.chartColorFor(level);
+
     return Container(
       width: 34,
       height: 34,
@@ -123,7 +174,10 @@ class _ArrivalMarker extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(color: color, width: 1.6),
+        border: Border.all(
+          color: color,
+          width: 1.6,
+        ),
       ),
       child: Text(
         '$index',
@@ -143,7 +197,12 @@ class _Dot extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 6),
-      child: Text('·', style: TextStyle(color: AppColors.inkFaint)),
+      child: Text(
+        '·',
+        style: TextStyle(
+          color: AppColors.inkFaint,
+        ),
+      ),
     );
   }
 }
