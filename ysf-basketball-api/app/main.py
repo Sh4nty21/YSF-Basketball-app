@@ -19,7 +19,7 @@ from sqlalchemy import text
 from app import __version__
 from app.config import settings
 from app.database import engine
-from app.routers import attendees, checkin, sessions, stats, teams
+from app.routers import attendees, checkin, results, sessions, stats, teams
 
 
 DESCRIPTION = """
@@ -65,6 +65,7 @@ for router in (
     checkin.router,
     attendees.router,
     teams.router,
+    results.router,
     stats.router,
 ):
     app.include_router(router, prefix=settings.api_prefix)

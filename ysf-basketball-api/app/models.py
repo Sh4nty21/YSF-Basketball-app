@@ -13,6 +13,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -26,6 +27,7 @@ from app.config import (
     SESSION_STATUSES,
     SKILL_LEVELS,
     TEAM_FORMATS,
+    TEAM_RESULTS,
 )
 from app.database import Base
 
@@ -61,6 +63,11 @@ class Session(Base):
         cascade="all, delete-orphan",
         order_by="Team.id",
     )
+    game_results: Mapped[list["GameResult"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="GameResult.id",
+    )
 
 
 class Attendee(Base):
@@ -75,6 +82,7 @@ class Attendee(Base):
         CheckConstraint("age > 0 AND age < 100", name="ck_attendees_age"),
         CheckConstraint(_in_clause("skill_level", SKILL_LEVELS), name="ck_attendees_skill_level"),
         CheckConstraint(_in_clause("source", ATTENDEE_SOURCES), name="ck_attendees_source"),
+        Index("ix_attendees_session_device", "session_id", "device_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -85,6 +93,9 @@ class Attendee(Base):
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     skill_level: Mapped[str] = mapped_column(String(20), nullable=False)
     source: Mapped[str] = mapped_column(String(10), nullable=False, default="qr", server_default="qr")
+    # Client-generated id (localStorage on the web form) used only to enforce
+    # the per-session self-check-in cap. Never used to identify a person.
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     checked_in_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
     session: Mapped[Session] = relationship(back_populates="attendees")
@@ -138,3 +149,60 @@ class TeamMember(Base):
 
     team: Mapped[Team] = relationship(back_populates="members")
     attendee: Mapped[Attendee] = relationship(back_populates="membership")
+
+
+class GameResult(Base):
+    """One recorded win/lose for one team's roster at one point in time.
+
+    Teams get played multiple times a session, so this is an append-only log,
+    not a single mutable field — every organizer marking creates a new row.
+    ``team_id`` is a best-effort pointer to the live team (nulled out, not
+    cascaded, if that team is later deleted by a reshuffle); ``team_name`` is
+    a permanent snapshot so the record still reads sensibly after that happens.
+    """
+
+    __tablename__ = "game_results"
+    __table_args__ = (
+        CheckConstraint(_in_clause("result", TEAM_RESULTS), name="ck_game_results_result"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    team_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    result: Mapped[str] = mapped_column(String(10), nullable=False)
+    recorded_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    session: Mapped[Session] = relationship(back_populates="game_results")
+    players: Mapped[list["GameResultPlayer"]] = relationship(
+        back_populates="game_result",
+        cascade="all, delete-orphan",
+        order_by="GameResultPlayer.id",
+    )
+
+
+class GameResultPlayer(Base):
+    """One attendee who was on the team's roster when a :class:`GameResult` was recorded.
+
+    This is the per-player half of the record: it is what lets an attendee's
+    win/lose history be read back even after their team assignment (and the
+    team itself) has since been wiped by a reshuffle — this row only ever
+    disappears if the ``GameResult`` it belongs to, or the attendee, is deleted.
+    """
+
+    __tablename__ = "game_result_players"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    game_result_id: Mapped[int] = mapped_column(
+        ForeignKey("game_results.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    attendee_id: Mapped[int] = mapped_column(
+        ForeignKey("attendees.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    game_result: Mapped[GameResult] = relationship(back_populates="players")
+    attendee: Mapped[Attendee] = relationship()

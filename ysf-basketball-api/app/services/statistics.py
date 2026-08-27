@@ -26,13 +26,12 @@ def build_stats(
     skills = SkillBreakdown(
         beginner=skill_counts.get("beginner", 0),
         intermediate=skill_counts.get("intermediate", 0),
-        pro=skill_counts.get("pro", 0),
     )
     sources = SourceBreakdown(
         qr=source_counts.get("qr", 0),
         manual=source_counts.get("manual", 0),
     )
-    total = skills.beginner + skills.intermediate + skills.pro
+    total = skills.beginner + skills.intermediate
 
     return SessionStats(
         session_id=session_id,

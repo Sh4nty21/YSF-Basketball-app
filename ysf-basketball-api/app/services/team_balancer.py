@@ -8,8 +8,10 @@ Two operations:
 
 * :func:`generate_teams` — full reshuffle via a continuous snake draft
   (destructive; overwrites the existing roster).
-* :func:`pick_best_fit_team` — slot ONE late arrival into the team that needs
-  their skill tier most, touching nobody else's placement.
+* :func:`pick_vacant_team` — slot ONE late arrival ("late registration") into
+  whichever team still has room, touching nobody else's placement and with no
+  skill balancing at all — a late arrival is filled in wherever there's a
+  spot, not fought over for team composition.
 """
 
 from __future__ import annotations
@@ -17,12 +19,11 @@ from __future__ import annotations
 import math
 import random
 import string
-from collections import Counter
 from typing import NamedTuple, Sequence
 
 # Skill tiers are drafted strongest-first so that the snake pattern hands the
-# scarce "pro" players out one per team before anyone gets a second.
-DRAFT_ORDER: tuple[str, ...] = ("pro", "intermediate", "beginner")
+# scarce "intermediate" players out one per team before anyone gets a second.
+DRAFT_ORDER: tuple[str, ...] = ("intermediate", "beginner")
 
 TEAM_SIZE_BY_FORMAT: dict[str, int] = {"5v5": 5, "4v4": 4, "3v3": 3}
 
@@ -34,12 +35,11 @@ class Player(NamedTuple):
     skill_level: str
 
 
-class TeamComposition(NamedTuple):
-    """Current makeup of one existing team, used by :func:`pick_best_fit_team`."""
+class TeamSize(NamedTuple):
+    """One existing team's current headcount, used by :func:`pick_vacant_team`."""
 
     team_id: int
-    skill_counts: Counter  # skill_level -> number of members
-    total_members: int
+    member_count: int
 
 
 class BalancingError(ValueError):
@@ -84,7 +84,7 @@ def team_label(index: int) -> str:
 
 
 def _draft_queue(players: Sequence[Player], rng: random.Random) -> list[Player]:
-    """Shuffle within each skill tier, then concatenate pro -> int -> beginner."""
+    """Shuffle within each skill tier, then concatenate intermediate -> beginner."""
     by_skill: dict[str, list[Player]] = {tier: [] for tier in DRAFT_ORDER}
     for player in players:
         if player.skill_level not in by_skill:
@@ -140,36 +140,29 @@ def generate_teams(
     return snake_draft(queue, num_teams)
 
 
-def pick_best_fit_team(
-    compositions: Sequence[TeamComposition],
-    skill_level: str,
-) -> int:
-    """Choose which existing team a late arrival should join (spec Section 6.2).
+def pick_vacant_team(sizes: Sequence[TeamSize], capacity: int) -> int | None:
+    """Choose which existing team a late registration should join.
 
-    Ranking, in order:
+    Deliberately not skill-aware — a late arrival is "just added there with
+    no synergy since they are late and are least priority" (spec): they fill
+    whichever team still has room, full stop. Preference goes to the LAST
+    team with a vacant slot, so late registrations build up at the tail of
+    the roster rather than being sprinkled back through the earlier teams.
 
-    1. fewest members already at the newcomer's skill level — keeps skill
-       spread even;
-    2. fewest total members — keeps team sizes even;
-    3. lowest ``team_id`` — deterministic tie-break so the same input always
-       gives the same answer.
+    Returns ``None`` if every team is already at ``capacity`` — the caller's
+    cue to start a brand new team instead (that new team then becomes the
+    natural target for the next one, until it too fills up).
 
-    Nothing about the other placements is changed, which is the whole point of
-    this operation versus a regenerate.
+    Raises if ``sizes`` is empty: that means no teams exist for this session
+    at all yet, which is a different situation from "every team is full"
+    (the caller must ``generate`` first).
     """
-    if skill_level not in DRAFT_ORDER:
-        raise BalancingError(f"unknown skill_level: {skill_level!r}")
-    if not compositions:
+    if not sizes:
         raise BalancingError(
             "no teams exist for this session yet — generate teams before adding a late player"
         )
 
-    best = min(
-        compositions,
-        key=lambda team: (
-            team.skill_counts.get(skill_level, 0),
-            team.total_members,
-            team.team_id,
-        ),
-    )
-    return best.team_id
+    for team in reversed(sizes):
+        if team.member_count < capacity:
+            return team.team_id
+    return None

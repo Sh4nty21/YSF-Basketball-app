@@ -22,11 +22,22 @@ def create(
         age=payload.age,
         skill_level=payload.skill_level,
         source=source,
+        device_id=payload.device_id,
     )
     db.add(attendee)
     db.commit()
     db.refresh(attendee)
     return attendee
+
+
+def count_by_device(db: DbSession, session_id: int, device_id: str) -> int:
+    """How many attendees this device has already checked in for this session."""
+    return db.scalar(
+        select(func.count(Attendee.id)).where(
+            Attendee.session_id == session_id,
+            Attendee.device_id == device_id,
+        )
+    ) or 0
 
 
 def get(db: DbSession, attendee_id: int) -> Attendee | None:
@@ -93,9 +104,14 @@ def average_age(db: DbSession, session_id: int) -> float | None:
     return round(float(value), 1) if value is not None else None
 
 
-def team_placement(attendee: Attendee) -> tuple[int | None, str | None]:
-    """``(team_id, team_name)`` for an attendee, or ``(None, None)`` if unplaced."""
+def team_placement(attendee: Attendee) -> tuple[int | None, str | None, str | None]:
+    """``(team_id, team_name, added_via)`` for an attendee, or all-``None`` if unplaced.
+
+    ``added_via`` distinguishes the original draft (``generate``) from anyone
+    slotted in afterward (``manual-add``) — the latter is what the app labels
+    "Late registration".
+    """
     membership = attendee.membership
     if membership is None or membership.team is None:
-        return None, None
-    return membership.team.id, membership.team.team_name
+        return None, None, None
+    return membership.team.id, membership.team.team_name, membership.added_via

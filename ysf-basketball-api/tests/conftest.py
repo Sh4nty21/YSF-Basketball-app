@@ -84,12 +84,30 @@ def session_id(client) -> int:
 
 @pytest.fixture()
 def check_in(client):
-    """Helper: check a participant in via the public endpoint, return their id."""
+    """Helper: check a participant in via the public endpoint, return their id.
 
-    def _check_in(session_id: int, name: str, age: int = 14, skill: str = "beginner") -> int:
+    Each call defaults to a fresh, unique ``device_id`` so existing tests are
+    never affected by the per-device check-in cap. Pass ``device_id``
+    explicitly to test the cap itself.
+    """
+    _counter = {"n": 0}
+
+    def _check_in(
+        session_id: int,
+        name: str,
+        age: int = 14,
+        skill: str = "beginner",
+        device_id: str | None = None,
+    ) -> int:
+        _counter["n"] += 1
         response = client.post(
             f"{settings.api_prefix}/sessions/{session_id}/checkin",
-            json={"name": name, "age": age, "skill_level": skill},
+            json={
+                "name": name,
+                "age": age,
+                "skill_level": skill,
+                "device_id": device_id or f"test-device-{_counter['n']}",
+            },
         )
         assert response.status_code == 201, response.text
         return response.json()["attendee_id"]

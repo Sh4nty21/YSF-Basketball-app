@@ -14,8 +14,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Values allowed by the database CHECK constraints (spec Section 4). Kept here
 # so schemas, services and migrations all agree on one definition.
-SKILL_LEVELS: tuple[str, ...] = ("beginner", "intermediate", "pro")
+SKILL_LEVELS: tuple[str, ...] = ("beginner", "intermediate")
 TEAM_FORMATS: tuple[str, ...] = ("5v5", "4v4", "3v3")
+TEAM_RESULTS: tuple[str, ...] = ("win", "lose")
 SESSION_STATUSES: tuple[str, ...] = ("open", "closed")
 ATTENDEE_SOURCES: tuple[str, ...] = ("qr", "manual")
 ADDED_VIA_VALUES: tuple[str, ...] = ("generate", "manual-add")
@@ -63,6 +64,10 @@ class Settings(BaseSettings):
     organizer_api_key: str = ""
 
     checkin_base_url: str = "http://localhost:5500"
+
+    # Anti-flooding: max self-check-ins the same browser/device may submit for
+    # a single session. Enforced via the client-generated `device_id` field.
+    checkin_device_limit: int = 5
 
     app_name: str = "YSF Basketball API"
     api_prefix: str = "/api/v1"
@@ -113,6 +118,7 @@ __all__ = [
     "SESSION_STATUSES",
     "SKILL_LEVELS",
     "TEAM_FORMATS",
+    "TEAM_RESULTS",
     "Settings",
     "get_settings",
     "settings",

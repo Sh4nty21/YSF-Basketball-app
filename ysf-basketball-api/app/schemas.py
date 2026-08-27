@@ -14,9 +14,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config import settings
 
-SkillLevel = Literal["beginner", "intermediate", "pro"]
+SkillLevel = Literal["beginner", "intermediate"]
 TeamFormat = Literal["5v5", "4v4", "3v3"]
 SessionStatus = Literal["open", "closed"]
+TeamResult = Literal["win", "lose"]
 
 # Trimmed, non-empty, at most the column width.
 NonEmptyName = Annotated[str, Field(min_length=1, max_length=100)]
@@ -77,6 +78,10 @@ class AttendeeCreate(_Base):
     name: NonEmptyName
     age: int
     skill_level: SkillLevel
+    # Client-generated, persisted in the browser's localStorage. Required by
+    # the public checkin router (not by organizer manual-add) so the same
+    # device can't be used to flood a session with fake registrations.
+    device_id: str | None = Field(default=None, max_length=64)
 
     @field_validator("name")
     @classmethod
@@ -95,6 +100,14 @@ class AttendeeCreate(_Base):
             )
         return value
 
+    @field_validator("device_id")
+    @classmethod
+    def _blank_device_id_is_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
 
 class AttendeeRead(_Base):
     id: int
@@ -107,6 +120,16 @@ class AttendeeRead(_Base):
     # Null when the attendee has not been placed on a team yet.
     team_id: int | None = None
     team_name: str | None = None
+    # "manual-add" here means this attendee arrived after teams already
+    # existed and was auto-slotted in (or added via /teams/add-player) — the
+    # app labels this "Late registration". "generate" means they were part
+    # of the original draft. Null alongside team_id/team_name = unplaced.
+    added_via: Literal["generate", "manual-add"] | None = None
+    # Aggregated across every game_results row this attendee was on the
+    # roster for, this session — survives every reshuffle, since regenerate
+    # never touches attendees or game_results (spec: individual tracking).
+    wins: int = 0
+    losses: int = 0
 
 
 class CheckinResponse(_Base):
@@ -126,6 +149,10 @@ class TeamMemberRead(_Base):
     age: int
     skill_level: SkillLevel
     added_via: Literal["generate", "manual-add"]
+    # Same session-wide, reshuffle-surviving tally as AttendeeRead.wins/losses
+    # — shown here too so a roster card doesn't need a second request.
+    wins: int = 0
+    losses: int = 0
 
 
 class TeamRead(_Base):
@@ -148,13 +175,40 @@ class AddPlayerRequest(_Base):
     attendee_id: int
 
 
+# ── Game results (win/lose record system) ───────────────────────────────────
+
+
+class GameResultCreate(_Base):
+    """Body for ``POST /teams/{team_id}/results``. Always creates a new row —
+    a team plays more than once a session, so there is no "update", only
+    "record another one". Mistakes are corrected via the delete endpoint."""
+
+    result: TeamResult
+
+
+class GameResultPlayerRead(_Base):
+    attendee_id: int
+    name: str
+
+
+class GameResultRead(_Base):
+    id: int
+    session_id: int
+    # Null if the team that earned this result was later deleted by a
+    # reshuffle — team_name below is what keeps the record legible regardless.
+    team_id: int | None
+    team_name: str
+    result: TeamResult
+    recorded_at: dt.datetime | None
+    players: list[GameResultPlayerRead]
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────
 
 
 class SkillBreakdown(_Base):
     beginner: int = 0
     intermediate: int = 0
-    pro: int = 0
 
 
 class SourceBreakdown(_Base):

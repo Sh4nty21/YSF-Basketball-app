@@ -23,6 +23,35 @@
     return window.location.origin + "/api/v1";
   }
 
+  /* ── Device id ─────────────────────────────────────────────────────────
+     A random id persisted in this browser so the backend can cap how many
+     people the same device checks in per session (anti-flooding). Not tied
+     to any personal identity — just this browser's local storage. Falls
+     back to an in-memory id if storage is unavailable (private mode, etc.),
+     which simply means the cap resets on reload in that edge case. */
+  var DEVICE_ID_KEY = "ysf_device_id";
+
+  function randomId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "dev-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+  }
+
+  function deviceId() {
+    try {
+      var existing = window.localStorage.getItem(DEVICE_ID_KEY);
+      if (existing) return existing;
+      var created = randomId();
+      window.localStorage.setItem(DEVICE_ID_KEY, created);
+      return created;
+    } catch (_) {
+      // localStorage blocked — fall back to a per-page-load id.
+      if (!deviceId._fallback) deviceId._fallback = randomId();
+      return deviceId._fallback;
+    }
+  }
+
   /* ── Element lookup ────────────────────────────────────────────────── */
   var el = {
     form: document.getElementById("checkinForm"),
@@ -121,7 +150,7 @@
       ok = false;
     }
 
-    return ok ? { name: name, age: age, skill_level: selectedSkill() } : null;
+    return ok ? { name: name, age: age, skill_level: selectedSkill(), device_id: deviceId() } : null;
   }
 
   /* ── Turn a failed response into something a teenager can act on ───── */
@@ -131,6 +160,10 @@
     }
     if (status === 409) {
       return (payload && payload.detail) || "Check-in for this session is closed.";
+    }
+    if (status === 429) {
+      return (payload && payload.detail) ||
+        "This device has already checked in the maximum number of people for this session. See an organizer if you need to add more.";
     }
     if (status === 422) {
       var detail = payload && payload.detail;
@@ -178,9 +211,14 @@
         return;
       }
 
-      hide(el.form);
       el.successTitle.textContent = "You're in, " + payload.name.split(" ")[0] + "!";
       el.successBody.textContent = (body && body.message) || "See you on the court.";
+      // Clear the fields before hiding, so the next person (or a re-shown
+      // form) never sees the previous participant's details and can't be
+      // double-submitted by mistake.
+      el.form.reset();
+      clearErrors();
+      hide(el.form);
       show(el.success);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (networkError) {

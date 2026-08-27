@@ -9,7 +9,7 @@ from app.database import get_db
 from app.dependencies import get_existing_session
 from app.models import Session
 from app.presenters import attendee_to_schema
-from app.repositories import attendees_repo
+from app.repositories import attendees_repo, results_repo, teams_repo
 from app.schemas import AttendeeCreate, AttendeeRead
 from app.security import require_organizer
 
@@ -39,6 +39,11 @@ def add_attendee(
         source="manual",
     )
     db.refresh(attendee)
+    # Same auto-placement as public check-in: if rosters already exist, slot
+    # this person straight into a vacant slot ("Late registration") instead
+    # of leaving them for a second manual add-player step.
+    teams_repo.place_if_possible(db, session.id, attendee.id, session.team_format)
+    db.refresh(attendee)
     return attendee_to_schema(attendee)
 
 
@@ -53,7 +58,8 @@ def list_attendees(
     """Live check-in list in arrival order, including team placement if any."""
 
     attendees = attendees_repo.list_for_session(db, session.id)
-    return [attendee_to_schema(attendee) for attendee in attendees]
+    tally = results_repo.wins_losses_by_attendee(db, session.id)
+    return [attendee_to_schema(attendee, tally) for attendee in attendees]
 
 
 @router.get(
@@ -67,7 +73,8 @@ def list_unassigned_attendees(
     """Attendees not yet on a team — the Add Late Player picker list."""
 
     attendees = attendees_repo.list_unassigned(db, session.id)
-    return [attendee_to_schema(attendee) for attendee in attendees]
+    tally = results_repo.wins_losses_by_attendee(db, session.id)
+    return [attendee_to_schema(attendee, tally) for attendee in attendees]
 
 
 @router.delete(

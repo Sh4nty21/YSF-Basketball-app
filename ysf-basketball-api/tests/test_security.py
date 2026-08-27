@@ -46,7 +46,12 @@ def test_public_checkin_never_requires_a_key(client, locked):
 
     response = client.post(
         f"{API}/sessions/{session_id}/checkin",
-        json={"name": "Public Pat", "age": 12, "skill_level": "beginner"},
+        json={
+            "name": "Public Pat",
+            "age": 14,
+            "skill_level": "beginner",
+            "device_id": "test-device",
+        },
     )
     assert response.status_code == 201
 

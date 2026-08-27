@@ -34,6 +34,13 @@
 
 * { box-sizing: border-box; }
 
+/* Author-stylesheet `display` rules (e.g. `.card { display: flex }`) always
+   win over the browser's default `[hidden] { display: none }` regardless of
+   selector specificity, since author CSS outranks the user-agent stylesheet.
+   Without this, elements with both a layout class and the `hidden` attribute
+   never actually hide. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -229,9 +236,9 @@ body {
 
 .skill-option input:checked + .skill-body .skill-note { color: rgba(255, 255, 255, 0.75); }
 
-/* "Pro" is the one tier that gets the red treatment — same restraint as the
-   logo, which reddens exactly one letter. */
-.skill-option--pro input:checked + .skill-body {
+/* "Intermediate" is the top tier now that "Pro" is retired, and gets the red
+   treatment — same restraint as the logo, which reddens exactly one letter. */
+.skill-option--top input:checked + .skill-body {
   border-color: var(--accent-dark);
   background: var(--accent);
 }

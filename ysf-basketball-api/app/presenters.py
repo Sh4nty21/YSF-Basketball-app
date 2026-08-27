@@ -8,15 +8,22 @@ deliberately free of any decision-making.
 from __future__ import annotations
 
 from app.config import settings
-from app.models import Attendee, Session, Team
+from app.models import Attendee, GameResult, Session, Team
 from app.repositories import attendees_repo
 from app.schemas import (
     AttendeeRead,
+    GameResultPlayerRead,
+    GameResultRead,
     SessionRead,
     TeamMemberRead,
     TeamRead,
     TeamsResponse,
 )
+
+# attendee_id -> (wins, losses), for the whole session. Built once per request
+# by results_repo.wins_losses_by_attendee and threaded through so presenting a
+# list of attendees/teams doesn't re-run the aggregate query per row.
+WinLossTally = dict[int, tuple[int, int]]
 
 
 def session_to_schema(
@@ -37,8 +44,12 @@ def session_to_schema(
     )
 
 
-def attendee_to_schema(attendee: Attendee) -> AttendeeRead:
-    team_id, team_name = attendees_repo.team_placement(attendee)
+def attendee_to_schema(
+    attendee: Attendee,
+    tally: WinLossTally | None = None,
+) -> AttendeeRead:
+    team_id, team_name, added_via = attendees_repo.team_placement(attendee)
+    wins, losses = (tally or {}).get(attendee.id, (0, 0))
     return AttendeeRead(
         id=attendee.id,
         session_id=attendee.session_id,
@@ -49,10 +60,14 @@ def attendee_to_schema(attendee: Attendee) -> AttendeeRead:
         checked_in_at=attendee.checked_in_at,
         team_id=team_id,
         team_name=team_name,
+        added_via=added_via,
+        wins=wins,
+        losses=losses,
     )
 
 
-def team_to_schema(team: Team) -> TeamRead:
+def team_to_schema(team: Team, tally: WinLossTally | None = None) -> TeamRead:
+    tally = tally or {}
     members = [
         TeamMemberRead(
             attendee_id=member.attendee.id,
@@ -60,6 +75,8 @@ def team_to_schema(team: Team) -> TeamRead:
             age=member.attendee.age,
             skill_level=member.attendee.skill_level,
             added_via=member.added_via,
+            wins=tally.get(member.attendee.id, (0, 0))[0],
+            losses=tally.get(member.attendee.id, (0, 0))[1],
         )
         for member in team.members
         if member.attendee is not None
@@ -71,10 +88,27 @@ def teams_to_schema(
     session: Session,
     teams: list[Team],
     unassigned: list[Attendee],
+    tally: WinLossTally | None = None,
 ) -> TeamsResponse:
     return TeamsResponse(
         session_id=session.id,
         team_format=session.team_format,
-        teams=[team_to_schema(team) for team in teams],
-        unassigned=[attendee_to_schema(attendee) for attendee in unassigned],
+        teams=[team_to_schema(team, tally) for team in teams],
+        unassigned=[attendee_to_schema(attendee, tally) for attendee in unassigned],
+    )
+
+
+def game_result_to_schema(record: GameResult) -> GameResultRead:
+    return GameResultRead(
+        id=record.id,
+        session_id=record.session_id,
+        team_id=record.team_id,
+        team_name=record.team_name,
+        result=record.result,
+        recorded_at=record.recorded_at,
+        players=[
+            GameResultPlayerRead(attendee_id=link.attendee.id, name=link.attendee.name)
+            for link in record.players
+            if link.attendee is not None
+        ],
     )

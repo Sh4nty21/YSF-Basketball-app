@@ -6,14 +6,20 @@ contains no balancing rules of its own.
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Sequence
 
-from sqlalchemy import delete, select
+from sqlalchemy import func, delete, select
 from sqlalchemy.orm import Session as DbSession, selectinload
 
 from app.models import Attendee, Team, TeamMember
-from app.services.team_balancer import Player, TeamComposition, team_label
+from app.services.team_balancer import (
+    BalancingError,
+    Player,
+    TeamSize,
+    pick_vacant_team,
+    team_label,
+    team_size_for_format,
+)
 
 
 def list_with_members(db: DbSession, session_id: int) -> list[Team]:
@@ -28,6 +34,13 @@ def list_with_members(db: DbSession, session_id: int) -> list[Team]:
 
 def get(db: DbSession, team_id: int) -> Team | None:
     return db.get(Team, team_id)
+
+
+def get_with_members(db: DbSession, team_id: int) -> Team | None:
+    """Same as :func:`get`, but with the roster eager-loaded — needed before
+    recording a result, since every current member gets snapshotted."""
+    stmt = select(Team).where(Team.id == team_id).options(selectinload(Team.members))
+    return db.scalars(stmt).first()
 
 
 def players_for_session(db: DbSession, session_id: int) -> list[Player]:
@@ -78,31 +91,18 @@ def replace_teams(
     return list_with_members(db, session_id)
 
 
-def compositions(db: DbSession, session_id: int) -> list[TeamComposition]:
-    """Current skill makeup of each team, for the late-arrival decision."""
+def team_sizes(db: DbSession, session_id: int) -> list[TeamSize]:
+    """Current headcount of each team, in team order — the late-arrival
+    ("late registration") decision only ever needs capacity, never skill."""
     rows = db.execute(
-        select(Team.id, Attendee.skill_level)
+        select(Team.id, func.count(TeamMember.id))
         .select_from(Team)
         .outerjoin(TeamMember, TeamMember.team_id == Team.id)
-        .outerjoin(Attendee, Attendee.id == TeamMember.attendee_id)
         .where(Team.session_id == session_id)
+        .group_by(Team.id)
         .order_by(Team.id.asc())
     ).all()
-
-    counters: dict[int, Counter] = {}
-    for team_id, skill in rows:
-        counter = counters.setdefault(team_id, Counter())
-        if skill is not None:  # outer join yields NULL for an empty team
-            counter[skill] += 1
-
-    return [
-        TeamComposition(
-            team_id=team_id,
-            skill_counts=counter,
-            total_members=sum(counter.values()),
-        )
-        for team_id, counter in counters.items()
-    ]
+    return [TeamSize(team_id=team_id, member_count=int(count)) for team_id, count in rows]
 
 
 def is_assigned(db: DbSession, attendee_id: int) -> bool:
@@ -119,6 +119,44 @@ def add_member(db: DbSession, team_id: int, attendee_id: int) -> TeamMember:
     db.commit()
     db.refresh(member)
     return member
+
+
+def place_if_possible(
+    db: DbSession,
+    session_id: int,
+    attendee_id: int,
+    team_format: str,
+) -> int | None:
+    """Auto-slot a just-created attendee into a team, if rosters already exist.
+
+    Called right after check-in / manual-add so a late arrival ("late
+    registration") never has to sit in the "waiting to be placed" queue for
+    an organizer to notice — this is what keeps a late arrival from forcing a
+    full reshuffle. No skill balancing: whoever still has a vacant slot gets
+    them, preferring the last such team; if every team is already full, a
+    fresh one is created and becomes the new tail of the roster.
+
+    A no-op (returns ``None``) when no teams exist yet at all for this
+    session — that's the normal pre-generate check-in flow, not a late
+    registration.
+    """
+    sizes = team_sizes(db, session_id)
+    if not sizes:
+        return None
+
+    capacity = team_size_for_format(team_format)
+    target_team_id = pick_vacant_team(sizes, capacity)
+
+    if target_team_id is None:
+        # Every existing team is full — this new team becomes the tail that
+        # subsequent late registrations fill, until it's full too.
+        team = Team(session_id=session_id, team_name=team_label(len(sizes)))
+        db.add(team)
+        db.flush()  # assigns team.id
+        target_team_id = team.id
+
+    add_member(db, target_team_id, attendee_id)
+    return target_team_id
 
 
 def assigned_count(db: DbSession, session_id: int) -> int:
