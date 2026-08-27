@@ -131,6 +131,23 @@ _CHECKIN_DIR = (
 )
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """Forces revalidation on every request instead of letting browsers use
+    their own (often long-lived) heuristic caching for these files.
+
+    Still cheap: the ETag/Last-Modified headers StaticFiles already sets let
+    a revalidation come back as a 304 with no body when nothing changed —
+    this only stops a phone from serving a stale app.js/styles.css without
+    even asking the server, which is what let a bug fix here go unnoticed by
+    someone who had already loaded the check-in page once before the deploy.
+    """
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 if _CHECKIN_DIR.is_dir():
 
     # Serve the public check-in website at the ROOT of the Render service.
@@ -151,7 +168,7 @@ if _CHECKIN_DIR.is_dir():
     # this catch-all static mount.
     app.mount(
         "/",
-        StaticFiles(
+        NoCacheStaticFiles(
             directory=str(_CHECKIN_DIR),
             html=True,
         ),

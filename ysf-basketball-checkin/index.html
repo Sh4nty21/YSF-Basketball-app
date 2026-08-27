@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#FFFFFF" />
   <meta name="description" content="Check in to this week's Elevate YSF basketball session." />
+  <!-- The server sends no Cache-Control header for these static files, so
+       browsers fall back to their own (often long-lived) heuristic caching.
+       These two hints reduce how long a stale index.html itself can survive
+       in a participant's phone cache — the ?v= query strings below on
+       app.js/styles.css are what actually guarantee a fresh fetch of THOSE
+       once the HTML is re-fetched: bump the number any time either file
+       changes, or a phone that cached the old ones may keep running them
+       until it happens to revalidate on its own. -->
+  <meta http-equiv="Cache-Control" content="no-cache" />
   <title>Check In · Elevate YSF Basketball</title>
 
   <link rel="icon" href="assets/ysf-logo.jpg" />
@@ -13,7 +22,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 
 <body>
@@ -115,7 +124,7 @@
     </footer>
   </main>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
