@@ -98,24 +98,16 @@ class _UrlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SelectableText(
-          url,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
-        ),
-        const SizedBox(height: AppDimens.sm),
-        YsfSecondaryButton(
-          label: 'Copy link',
-          icon: Icons.copy_rounded,
-          expand: false,
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: url));
-            if (context.mounted) context.showSuccess('Check-in link copied.');
-          },
-        ),
-      ],
+    // The link itself is not printed on screen — copy it straight to the
+    // clipboard instead of displaying it as text.
+    return YsfSecondaryButton(
+      label: 'Copy check-in link',
+      icon: Icons.copy_rounded,
+      expand: false,
+      onPressed: () async {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (context.mounted) context.showSuccess('Check-in link copied.');
+      },
     );
   }
 }

@@ -9,6 +9,8 @@ class TeamMember {
     required this.age,
     required this.skillLevel,
     required this.addedVia,
+    this.wins = 0,
+    this.losses = 0,
   });
 
   final int attendeeId;
@@ -17,7 +19,12 @@ class TeamMember {
   final SkillLevel skillLevel;
   final AddedVia addedVia;
 
+  /// Same session-wide, reshuffle-surviving tally as [Attendee.wins]/[losses].
+  final int wins;
+  final int losses;
+
   bool get isLateAdd => addedVia == AddedVia.manualAdd;
+  bool get hasResults => wins > 0 || losses > 0;
 
   factory TeamMember.fromJson(Map<String, dynamic> json) {
     return TeamMember(
@@ -26,6 +33,8 @@ class TeamMember {
       age: (json['age'] as num).toInt(),
       skillLevel: SkillLevel.fromWire(json['skill_level'] as String),
       addedVia: AddedVia.fromWire(json['added_via'] as String),
+      wins: (json['wins'] as num?)?.toInt() ?? 0,
+      losses: (json['losses'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -10,19 +10,32 @@ import 'sticker_card.dart';
 /// One team's roster, shown as a sticker card (spec Section 7:
 /// "shows generated teams as cards").
 ///
-/// Late additions are flagged so an organizer can see at a glance who was
-/// slotted in after the draft.
+/// Anyone slotted in after the original draft (auto-placed at check-in, or
+/// via the manual add-player fallback) is flagged "LATE REGISTRATION" in red
+/// so an organizer can see at a glance who showed up after teams were made.
+/// "Record win"/"Record loss" let the organizer log a result for the current
+/// roster — a team plays more than once a session, so each tap adds another
+/// entry rather than replacing one.
 class TeamCard extends StatelessWidget {
   const TeamCard({
     super.key,
     required this.team,
     required this.playersPerTeam,
+    this.onRecordResult,
+    this.recording = false,
   });
 
   final Team team;
 
   /// From the session's format, used only for the "needs N more" hint.
   final int playersPerTeam;
+
+  /// Called with the tapped result. Null hides the record-result controls
+  /// entirely (e.g. while another action for this card is in flight).
+  final ValueChanged<TeamResult>? onRecordResult;
+
+  /// Shows a busy state on both result buttons.
+  final bool recording;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +145,21 @@ class TeamCard extends StatelessWidget {
                 ],
               ),
             ),
+
+          // ── Record a result ─────────────────────────────────────────────
+          if (onRecordResult != null && team.members.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.lg,
+                0,
+                AppDimens.lg,
+                AppDimens.lg,
+              ),
+              child: _ResultButtons(
+                onTap: onRecordResult!,
+                busy: recording,
+              ),
+            ),
         ],
       ),
     );
@@ -217,16 +245,121 @@ class _MemberRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: AppDimens.sm),
               child: Text(
-                'LATE ADD',
+                'LATE REGISTRATION',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: AppColors.accent,
-                  fontSize: 9.5,
+                  fontSize: 8.5,
                   fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          if (member.hasResults)
+            Padding(
+              padding: const EdgeInsets.only(right: AppDimens.sm),
+              child: Text(
+                '${member.wins}W-${member.losses}L',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           Text('${member.age}', style: theme.textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+}
+
+/// "Record win" / "Record loss" — each tap creates a new log entry for the
+/// current roster (spec: teams play more than once, this is not a toggle).
+class _ResultButtons extends StatelessWidget {
+  const _ResultButtons({required this.onTap, required this.busy});
+
+  final ValueChanged<TeamResult> onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ResultButton(
+            label: 'Record win',
+            icon: Icons.emoji_events_rounded,
+            color: AppColors.success,
+            busy: busy,
+            onTap: () => onTap(TeamResult.win),
+          ),
+        ),
+        const SizedBox(width: AppDimens.sm),
+        Expanded(
+          child: _ResultButton(
+            label: 'Record loss',
+            icon: Icons.close_rounded,
+            color: AppColors.accent,
+            busy: busy,
+            onTap: () => onTap(TeamResult.lose),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ResultButton extends StatelessWidget {
+  const _ResultButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      child: InkWell(
+        onTap: busy ? null : onTap,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+            border: Border.all(color: AppColors.line, width: AppDimens.hairline),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (busy)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                )
+              else
+                Icon(icon, size: 15, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.5,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

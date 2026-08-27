@@ -7,6 +7,7 @@ import '../core/config/app_settings.dart';
 import '../core/errors/api_exception.dart';
 import '../models/attendee.dart';
 import '../models/enums.dart';
+import '../models/game_result.dart';
 import '../models/session.dart';
 import '../models/session_stats.dart';
 import '../models/team.dart';
@@ -144,6 +145,36 @@ class ApiService {
       {'attendee_id': attendeeId},
     );
     return TeamsSnapshot.fromJson(_asMap(body));
+  }
+
+  // ── Game results (win/lose record) ────────────────────────────────────
+
+  /// `POST /sessions/{id}/teams/{teamId}/results` — records a new result for
+  /// the team's current roster. A team plays more than once a session, so
+  /// this always creates another entry rather than overwriting one.
+  Future<TeamsSnapshot> recordTeamResult(
+    int sessionId,
+    int teamId,
+    TeamResult result,
+  ) async {
+    final body = await _post(
+      '/sessions/$sessionId/teams/$teamId/results',
+      {'result': result.wire},
+    );
+    return TeamsSnapshot.fromJson(_asMap(body));
+  }
+
+  /// `GET /sessions/{id}/results` — the full record log, most recent first.
+  Future<List<GameResult>> fetchResults(int sessionId) async {
+    final body = await _get('/sessions/$sessionId/results');
+    return _asList(body)
+        .map((json) => GameResult.fromJson(json))
+        .toList(growable: false);
+  }
+
+  /// `DELETE /sessions/{id}/results/{resultId}` — undoes a mistaken marking.
+  Future<void> deleteResult(int sessionId, int resultId) async {
+    await _delete('/sessions/$sessionId/results/$resultId');
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────

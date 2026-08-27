@@ -12,6 +12,9 @@ class Attendee {
     required this.checkedInAt,
     required this.teamId,
     required this.teamName,
+    this.addedVia,
+    this.wins = 0,
+    this.losses = 0,
   });
 
   final int id;
@@ -26,7 +29,20 @@ class Attendee {
   final int? teamId;
   final String? teamName;
 
+  /// Null until placed. `manualAdd` means this attendee arrived after teams
+  /// already existed and was auto-slotted in (or added via the manual
+  /// add-player fallback) — shown as a "Late registration" mark.
+  final AddedVia? addedVia;
+
+  /// Session-wide win/lose tally, aggregated across every game_results row
+  /// this attendee was on the roster for — survives every reshuffle, since
+  /// regenerate never touches attendees or their result history.
+  final int wins;
+  final int losses;
+
   bool get isAssigned => teamId != null;
+  bool get hasResults => wins > 0 || losses > 0;
+  bool get isLateRegistration => addedVia == AddedVia.manualAdd;
 
   factory Attendee.fromJson(Map<String, dynamic> json) {
     return Attendee(
@@ -41,6 +57,9 @@ class Attendee {
           : DateTime.tryParse(json['checked_in_at'] as String),
       teamId: (json['team_id'] as num?)?.toInt(),
       teamName: json['team_name'] as String?,
+      addedVia: AddedVia.fromWireOrNull(json['added_via'] as String?),
+      wins: (json['wins'] as num?)?.toInt() ?? 0,
+      losses: (json['losses'] as num?)?.toInt() ?? 0,
     );
   }
 }

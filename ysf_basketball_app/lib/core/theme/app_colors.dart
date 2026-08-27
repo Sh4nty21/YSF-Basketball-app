@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// The two ink values and the accent were sampled directly out of
 /// `YSF Logo.jpg`: the lettering is pure marker black and there is exactly one
 /// red stroke, `#D53125`. The app follows the same discipline — red is reserved
-/// for the primary action and the "pro" tier, never used as decoration.
+/// for the primary action and the top skill tier, never used as decoration.
 abstract final class AppColors {
   /// Page background — the logo's own white.
   static const Color paper = Color(0xFFFFFFFF);

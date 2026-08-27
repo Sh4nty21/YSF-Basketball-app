@@ -103,7 +103,7 @@ class _DashboardState extends ConsumerState<_Dashboard> {
       message: hasExisting
           ? 'This rebuilds every team from scratch for all '
                 '${attendees.length} players.'
-                '${lateAdds > 0 ? ' The $lateAdds late add${lateAdds == 1 ? '' : 's'} you placed by hand will be shuffled back in.' : ''}'
+                '${lateAdds > 0 ? ' The $lateAdds late registration${lateAdds == 1 ? '' : 's'} will be shuffled back in.' : ''}'
           : 'The backend will snake-draft all ${attendees.length} players into '
                 'balanced ${widget.session.format.label} teams.',
       confirmLabel: hasExisting ? 'Yes, reshuffle' : 'Generate teams',

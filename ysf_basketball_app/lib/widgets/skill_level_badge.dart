@@ -4,13 +4,12 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../models/enums.dart';
 
-/// Colour-coded skill badge (spec Section 7: "e.g. red accent for pro").
+/// Colour-coded skill badge (spec Section 7: "e.g. red accent for the top tier").
 ///
 /// The logo reddens exactly one letter out of eleven, so the app reddens
-/// exactly one tier out of three:
+/// exactly one tier out of two:
 ///
-/// * **pro** — solid red
-/// * **intermediate** — solid marker black
+/// * **intermediate** — solid red (the top tier now that "pro" is retired)
 /// * **beginner** — outlined, no fill
 class SkillLevelBadge extends StatelessWidget {
   const SkillLevelBadge({
@@ -25,27 +24,23 @@ class SkillLevelBadge extends StatelessWidget {
   final bool compact;
 
   static Color fillFor(SkillLevel level) => switch (level) {
-        SkillLevel.pro => AppColors.accent,
-        SkillLevel.intermediate => AppColors.ink,
+        SkillLevel.intermediate => AppColors.accent,
         SkillLevel.beginner => AppColors.paper,
       };
 
   static Color textFor(SkillLevel level) => switch (level) {
-        SkillLevel.pro => AppColors.paper,
         SkillLevel.intermediate => AppColors.paper,
         SkillLevel.beginner => AppColors.ink,
       };
 
   static Color outlineFor(SkillLevel level) => switch (level) {
-        SkillLevel.pro => AppColors.accentDark,
-        SkillLevel.intermediate => AppColors.ink,
+        SkillLevel.intermediate => AppColors.accentDark,
         SkillLevel.beginner => AppColors.ink,
       };
 
   /// Colour used for bars and dots that represent a tier without text.
   static Color chartColorFor(SkillLevel level) => switch (level) {
-        SkillLevel.pro => AppColors.accent,
-        SkillLevel.intermediate => AppColors.ink,
+        SkillLevel.intermediate => AppColors.accent,
         SkillLevel.beginner => AppColors.inkFaint,
       };
 

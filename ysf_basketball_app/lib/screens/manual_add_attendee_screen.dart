@@ -142,14 +142,14 @@ class _ManualAddAttendeeScreenState
               decoration: const InputDecoration(
                 hintText: 'e.g. 14',
                 counterText: '',
-                helperText: 'Ages 4 to 19',
+                helperText: 'Ages 13 to 22',
                 prefixIcon: Icon(Icons.cake_outlined),
               ),
               validator: (value) {
                 final age = int.tryParse((value ?? '').trim());
                 if (age == null) return 'Age is required.';
                 // Same bounds the backend enforces (MIN_AGE / MAX_AGE).
-                if (age < 4 || age > 19) return 'Age must be between 4 and 19.';
+                if (age < 13 || age > 22) return 'Age must be between 13 and 22.';
                 return null;
               },
             ),
@@ -217,7 +217,6 @@ class _SkillPicker extends StatelessWidget {
   static const _blurbs = {
     SkillLevel.beginner: 'Still learning the ropes',
     SkillLevel.intermediate: 'Comfortable in a real game',
-    SkillLevel.pro: 'Bring me the ball',
   };
 
   @override
@@ -255,10 +254,10 @@ class _SkillOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Selected "pro" goes red; the other tiers go black. Same restraint as the
-    // logo, which reddens exactly one letter.
+    // Selected "intermediate" (the top tier now) goes red; beginner goes
+    // black. Same restraint as the logo, which reddens exactly one letter.
     final fill = selected
-        ? (level == SkillLevel.pro ? AppColors.accent : AppColors.ink)
+        ? (level == SkillLevel.intermediate ? AppColors.accent : AppColors.ink)
         : AppColors.surface;
     final foreground = selected ? AppColors.paper : AppColors.ink;
 
@@ -278,7 +277,7 @@ class _SkillOption extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppDimens.radiusMd),
             border: Border.all(
               color: selected
-                  ? (level == SkillLevel.pro
+                  ? (level == SkillLevel.intermediate
                       ? AppColors.accentDark
                       : AppColors.ink)
                   : AppColors.line,

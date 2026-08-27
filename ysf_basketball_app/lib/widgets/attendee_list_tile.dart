@@ -55,11 +55,21 @@ class AttendeeListTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  attendee.name,
-                  style: theme.textTheme.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        attendee.name,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (attendee.isLateRegistration) ...[
+                      const SizedBox(width: AppDimens.xs),
+                      const _LateRegistrationBadge(),
+                    ],
+                  ],
                 ),
 
                 const SizedBox(height: 2),
@@ -104,6 +114,20 @@ class AttendeeListTile extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+
+                    // Session-wide win/lose tally — survives whatever team
+                    // this attendee is on right now, including a reshuffle.
+                    if (attendee.hasResults) ...[
+                      const _Dot(),
+
+                      Text(
+                        '${attendee.wins}W-${attendee.losses}L',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.inkSoft,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -202,6 +226,34 @@ class _Dot extends StatelessWidget {
         style: TextStyle(
           color: AppColors.inkFaint,
         ),
+      ),
+    );
+  }
+}
+
+/// Red "LATE REGISTRATION" mark for anyone auto-slotted onto a team after
+/// rosters were already generated — lets an organizer spot at a glance who
+/// showed up after the draft.
+class _LateRegistrationBadge extends StatelessWidget {
+  const _LateRegistrationBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.accentTint,
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        border: Border.all(color: AppColors.accent, width: 1.4),
+      ),
+      child: Text(
+        'LATE REGISTRATION',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.accent,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
       ),
     );
   }

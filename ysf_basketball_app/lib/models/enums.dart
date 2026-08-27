@@ -3,11 +3,10 @@
 /// labels here are presentation only.
 library;
 
-/// `beginner` / `intermediate` / `pro`.
+/// `beginner` / `intermediate`.
 enum SkillLevel {
   beginner('beginner', 'Beginner'),
-  intermediate('intermediate', 'Intermediate'),
-  pro('pro', 'Pro');
+  intermediate('intermediate', 'Intermediate');
 
   const SkillLevel(this.wire, this.label);
 
@@ -85,10 +84,12 @@ enum AttendeeSource {
   }
 }
 
-/// Whether a placement came from a full generate pass or a late add.
+/// Whether a placement came from a full generate pass or arrived after
+/// (auto-placed at check-in, or the manual add-player fallback) — the app
+/// labels the latter "Late registration".
 enum AddedVia {
   generate('generate', 'Drafted'),
-  manualAdd('manual-add', 'Late add');
+  manualAdd('manual-add', 'Late registration');
 
   const AddedVia(this.wire, this.label);
 
@@ -99,6 +100,37 @@ enum AddedVia {
     return AddedVia.values.firstWhere(
       (via) => via.wire == value,
       orElse: () => AddedVia.generate,
+    );
+  }
+
+  /// Attendees aren't always on a team yet — null on the wire means "not
+  /// placed", which is not the same thing as either enum value.
+  static AddedVia? fromWireOrNull(String? value) {
+    if (value == null) return null;
+    return fromWire(value);
+  }
+}
+
+/// `win` / `lose` — a single recorded game outcome for a team.
+///
+/// Unlike the other enums, a team's overall result is never a single value:
+/// it plays more than once a session, so the backend stores these as an
+/// append-only log (`GameResult`), not a field on `Team`. This enum is only
+/// ever nullable on the wire (no result recorded yet for a given context).
+enum TeamResult {
+  win('win', 'Won'),
+  lose('lose', 'Lost');
+
+  const TeamResult(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static TeamResult? fromWireOrNull(String? value) {
+    if (value == null) return null;
+    return TeamResult.values.firstWhere(
+      (result) => result.wire == value,
+      orElse: () => TeamResult.win,
     );
   }
 }

@@ -5,6 +5,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../core/utils/feedback.dart';
 import '../models/attendee.dart';
+import '../models/enums.dart';
 import '../models/team.dart';
 import '../providers/session_providers.dart';
 import '../providers/team_providers.dart';
@@ -15,6 +16,7 @@ import '../widgets/state_views.dart';
 import '../widgets/sticker_card.dart';
 import '../widgets/team_card.dart';
 import '../widgets/ysf_button.dart';
+import 'session_results_screen.dart';
 import 'session_stats_screen.dart';
 
 /// Generated rosters plus the "Add Late Player" flow (spec Section 7).
@@ -33,7 +35,26 @@ class TeamRostersScreen extends ConsumerStatefulWidget {
 
 class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
   int? _busyAttendeeId;
+  int? _busyTeamId;
   bool _regenerating = false;
+
+  Future<void> _recordResult(int teamId, TeamResult result) async {
+    setState(() => _busyTeamId = teamId);
+    try {
+      await ref
+          .read(teamsProvider(widget.sessionId).notifier)
+          .recordResult(teamId, result);
+      if (mounted) {
+        context.showSuccess(
+          result == TeamResult.win ? 'Win recorded.' : 'Loss recorded.',
+        );
+      }
+    } catch (error) {
+      if (mounted) context.showFailure(error);
+    } finally {
+      if (mounted) setState(() => _busyTeamId = null);
+    }
+  }
 
   Future<void> _addLatePlayer(Attendee attendee) async {
     setState(() => _busyAttendeeId = attendee.id);
@@ -69,15 +90,18 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
         .where((member) => member.isLateAdd)
         .length;
 
+    final teams = ref.read(teamsProvider(widget.sessionId).notifier);
+    teams.pausePolling();
     final confirmed = await showConfirmDialog(
       context,
       title: 'Reshuffle every team?',
       message: 'All ${snapshot.playersOnTeams} placements are thrown out and '
           'redrafted from scratch.'
-          '${lateAdds > 0 ? ' That includes the $lateAdds late add${lateAdds == 1 ? '' : 's'} you placed by hand.' : ''}',
+          '${lateAdds > 0 ? ' That includes the $lateAdds late registration${lateAdds == 1 ? '' : 's'}.' : ''}',
       confirmLabel: 'Yes, reshuffle',
       icon: Icons.shuffle_rounded,
     );
+    teams.resumePolling();
     if (!confirmed || !mounted) return;
 
     setState(() => _regenerating = true);
@@ -100,6 +124,22 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
         title: const Text('Team rosters'),
         actions: [
           IconButton(
+            tooltip: 'Check for late registrations',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () =>
+                ref.read(teamsProvider(widget.sessionId).notifier).refresh(),
+          ),
+          IconButton(
+            tooltip: 'Win/loss record',
+            icon: const Icon(Icons.history_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    SessionResultsScreen(sessionId: widget.sessionId),
+              ),
+            ),
+          ),
+          IconButton(
             tooltip: 'Attendance stats',
             icon: const Icon(Icons.insights_rounded),
             onPressed: () => Navigator.of(context).push(
@@ -120,8 +160,10 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
         AsyncData(:final value) => _Rosters(
             snapshot: value,
             busyAttendeeId: _busyAttendeeId,
+            busyTeamId: _busyTeamId,
             regenerating: _regenerating,
             onAddLatePlayer: _addLatePlayer,
+            onRecordResult: _recordResult,
             onRegenerate: () => _regenerate(value),
             onRefresh: () async {
               await ref.read(teamsProvider(widget.sessionId).notifier).refresh();
@@ -138,16 +180,20 @@ class _Rosters extends StatelessWidget {
   const _Rosters({
     required this.snapshot,
     required this.busyAttendeeId,
+    required this.busyTeamId,
     required this.regenerating,
     required this.onAddLatePlayer,
+    required this.onRecordResult,
     required this.onRegenerate,
     required this.onRefresh,
   });
 
   final TeamsSnapshot snapshot;
   final int? busyAttendeeId;
+  final int? busyTeamId;
   final bool regenerating;
   final Future<void> Function(Attendee) onAddLatePlayer;
+  final Future<void> Function(int teamId, TeamResult result) onRecordResult;
   final VoidCallback onRegenerate;
   final Future<void> Function() onRefresh;
 
@@ -247,6 +293,10 @@ class _Rosters extends StatelessWidget {
               child: TeamCard(
                 team: team,
                 playersPerTeam: snapshot.format.playersPerTeam,
+                recording: busyTeamId == team.id,
+                onRecordResult: busyTeamId != null && busyTeamId != team.id
+                    ? null
+                    : (result) => onRecordResult(team.id, result),
               ),
             ),
 
