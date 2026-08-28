@@ -6,63 +6,103 @@ import '../models/enums.dart';
 import 'skill_level_badge.dart';
 import 'sticker_card.dart';
 
+/// The four sticker-tile background treatments on the stats bento grid —
+/// mirrors the mockup's red/white/yellow/grey tile variety instead of a
+/// plain accent/non-accent binary.
+enum StatTileTone { red, white, yellow, grey }
+
 /// A big number with a caption — the headline figures on the stats screen.
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
     required this.value,
     required this.caption,
-    this.accent = false,
+    this.tone = StatTileTone.white,
     this.icon,
   });
 
   final String value;
   final String caption;
 
-  /// Exactly one tile per row should set this, keeping red scarce.
-  final bool accent;
+  /// Exactly one tile per row should be [StatTileTone.red], keeping red scarce.
+  final StatTileTone tone;
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final (
+      Color background,
+      Color borderColor,
+      Color foreground,
+      Color muted,
+    ) = switch (tone) {
+      StatTileTone.red => (
+        AppColors.accent,
+        AppColors.accentDark,
+        AppColors.paper,
+        AppColors.paper.withValues(alpha: 0.85),
+      ),
+      StatTileTone.yellow => (
+        AppColors.warning,
+        AppColors.ink,
+        AppColors.ink,
+        AppColors.inkSoft,
+      ),
+      StatTileTone.grey => (
+        AppColors.tileGrey,
+        AppColors.ink,
+        AppColors.ink,
+        AppColors.inkSoft,
+      ),
+      StatTileTone.white => (
+        AppColors.paper,
+        AppColors.ink,
+        AppColors.ink,
+        AppColors.inkFaint,
+      ),
+    };
+
     return StickerCard(
-      background: accent ? AppColors.accent : AppColors.paper,
-      borderColor: accent ? AppColors.accentDark : AppColors.ink,
+      background: background,
+      borderColor: borderColor,
       padding: const EdgeInsets.symmetric(
         horizontal: AppDimens.lg,
         vertical: AppDimens.lg,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (icon != null) ...[
-            Icon(
-              icon,
-              size: 20,
-              color: accent ? AppColors.paper : AppColors.inkFaint,
+      child: SizedBox(
+        height: 116,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            icon == null
+                ? const SizedBox(height: 20)
+                : Icon(icon, size: 20, color: muted),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    color: foreground,
+                    fontSize: 34,
+                    height: 1,
+                  ),
+                ),
+                Text(
+                  caption.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: muted,
+                    fontSize: 10.5,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: AppDimens.sm),
           ],
-          Text(
-            value,
-            style: theme.textTheme.headlineLarge?.copyWith(
-              color: accent ? AppColors.paper : AppColors.ink,
-              fontSize: 34,
-            ),
-          ),
-          Text(
-            caption.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: accent
-                  ? AppColors.paper.withValues(alpha: 0.85)
-                  : AppColors.inkFaint,
-              fontSize: 10.5,
-              letterSpacing: 0.9,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -125,7 +165,9 @@ class SkillShareBar extends StatelessWidget {
                       width: constraints.maxWidth * share.clamp(0.0, 1.0),
                       decoration: BoxDecoration(
                         color: color,
-                        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                        borderRadius: BorderRadius.circular(
+                          AppDimens.radiusPill,
+                        ),
                       ),
                     ),
                   ],

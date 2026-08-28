@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../core/utils/formatters.dart';
-import '../models/enums.dart';
 import '../models/session.dart';
 import '../providers/session_providers.dart';
 import '../widgets/brand.dart';
@@ -32,19 +31,20 @@ class SessionListScreen extends ConsumerWidget {
               const _Masthead(),
               Expanded(
                 child: switch (sessions) {
-                  AsyncLoading() => const LoadingView(message: 'Loading sessions…'),
+                  AsyncLoading() => const LoadingView(
+                    message: 'Loading sessions…',
+                  ),
                   AsyncError(:final error) => ErrorView(
-                      error: error,
-                      onRetry: () => ref.read(sessionListProvider.notifier).refresh(),
-                      onOpenSettings: () => _openSettings(context),
-                    ),
+                    error: error,
+                    onRetry: () =>
+                        ref.read(sessionListProvider.notifier).refresh(),
+                    onOpenSettings: () => _openSettings(context),
+                  ),
                   AsyncData(:final value) => _SessionList(sessions: value),
                   _ => const LoadingView(message: 'Loading sessions…'),
                 },
               ),
-              _BottomBar(
-                onNewSession: () => _openNewSession(context, ref),
-              ),
+              _BottomBar(onNewSession: () => _openNewSession(context, ref)),
             ],
           ),
         ),
@@ -68,9 +68,9 @@ class SessionListScreen extends ConsumerWidget {
   }
 
   static void _openSettings(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 }
 
@@ -97,9 +97,9 @@ class _Masthead extends StatelessWidget {
               children: [
                 Text(
                   'SESSIONS',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: 27,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineMedium?.copyWith(fontSize: 27),
                 ),
                 Text(
                   'Weekly Basketball Fellowship',
@@ -137,9 +137,9 @@ class _SessionList extends ConsumerWidget {
           label: 'Create the first session',
           icon: Icons.add_rounded,
           expand: false,
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const NewSessionScreen()),
-          ),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const NewSessionScreen())),
         ),
       );
     }
@@ -160,12 +160,12 @@ class _SessionList extends ConsumerWidget {
         children: [
           if (open.isNotEmpty) ...[
             const SectionLabel('Check-in open'),
-            for (final session in open) _SessionTile(session: session),
+            for (final session in open) _FeaturedSessionCard(session: session),
             const SizedBox(height: AppDimens.lg),
           ],
           if (past.isNotEmpty) ...[
             const SectionLabel('History'),
-            for (final session in past) _SessionTile(session: session),
+            _HistoryGrid(sessions: past),
           ],
         ],
       ),
@@ -173,8 +173,11 @@ class _SessionList extends ConsumerWidget {
   }
 }
 
-class _SessionTile extends StatelessWidget {
-  const _SessionTile({required this.session});
+/// Big featured card for a session that's still accepting check-ins — the
+/// mockup's headline treatment: red accent bar, eyebrow, big title, a
+/// pulsing "LIVE" pill, and a two-stat row with a divider.
+class _FeaturedSessionCard extends StatelessWidget {
+  const _FeaturedSessionCard({required this.session});
 
   final Session session;
 
@@ -190,53 +193,150 @@ class _SessionTile extends StatelessWidget {
             builder: (_) => SessionDashboardScreen(sessionId: session.id),
           ),
         ),
-        child: Row(
-          children: [
-            _DateBlock(session: session),
-            const SizedBox(width: AppDimens.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    session.weekLabel?.isNotEmpty == true
-                        ? session.weekLabel!
-                        : Formatters.relativeDay(session.date),
-                    style: theme.textTheme.titleLarge?.copyWith(fontSize: 18),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    Formatters.shortDate(session.date),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppDimens.sm),
-                  Wrap(
-                    spacing: AppDimens.xs,
-                    runSpacing: AppDimens.xs,
-                    children: [
-                      _Chip(
-                        label: session.format.label,
-                        filled: true,
-                      ),
-                      _Chip(
-                        label: Formatters.players(session.attendeeCount),
-                        icon: Icons.groups_rounded,
-                      ),
-                      if (session.hasTeams)
-                        _Chip(
-                          label: '${session.teamCount} teams',
-                          icon: Icons.shield_rounded,
+        padding: EdgeInsets.zero,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(
+            AppDimens.radiusLg - AppDimens.border,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 6, color: AppColors.accent),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimens.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    session.format.label.toUpperCase(),
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    session.weekLabel?.isNotEmpty == true
+                                        ? session.weekLabel!
+                                        : Formatters.relativeDay(session.date),
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(fontSize: 22),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    Formatters.fullDate(session.date),
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const _LivePill(),
+                          ],
                         ),
-                      if (session.status == SessionStatus.closed)
-                        const _Chip(label: 'Closed', muted: true),
-                    ],
+                        const SizedBox(height: AppDimens.md),
+                        const Divider(),
+                        const SizedBox(height: AppDimens.sm),
+                        Row(
+                          children: [
+                            _BigStat(
+                              value: '${session.attendeeCount}',
+                              label: 'Checked in',
+                            ),
+                            Container(
+                              width: 1.5,
+                              height: 32,
+                              color: AppColors.line,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: AppDimens.lg,
+                              ),
+                            ),
+                            _BigStat(
+                              value: '${session.teamCount}',
+                              label: 'Teams',
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppColors.inkFaint,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LivePill extends StatefulWidget {
+  const _LivePill();
+
+  @override
+  State<_LivePill> createState() => _LivePillState();
+}
+
+class _LivePillState extends State<_LivePill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 1, end: 0.55).animate(_controller),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.accent,
+          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          border: Border.all(color: AppColors.ink, width: 1.6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: AppColors.paper,
+                shape: BoxShape.circle,
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint),
+            const SizedBox(width: 5),
+            Text(
+              'LIVE',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: AppColors.paper,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
         ),
       ),
@@ -244,95 +344,124 @@ class _SessionTile extends StatelessWidget {
   }
 }
 
-/// Calendar-style date block, red when check-in is still open.
-class _DateBlock extends StatelessWidget {
-  const _DateBlock({required this.session});
+class _BigStat extends StatelessWidget {
+  const _BigStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: AppColors.inkFaint,
+            fontSize: 9.5,
+          ),
+        ),
+        Text(value, style: theme.textTheme.titleLarge?.copyWith(fontSize: 22)),
+      ],
+    );
+  }
+}
+
+/// Responsive grid of quiet, compact cards for past sessions — 1 column on
+/// narrow phones, more as the viewport widens.
+class _HistoryGrid extends StatelessWidget {
+  const _HistoryGrid({required this.sessions});
+
+  final List<Session> sessions;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 3
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        final gapTotal = AppDimens.md * (columns - 1);
+        final cardWidth = (constraints.maxWidth - gapTotal) / columns;
+
+        return Wrap(
+          spacing: AppDimens.md,
+          runSpacing: AppDimens.md,
+          children: [
+            for (final session in sessions)
+              SizedBox(
+                width: cardWidth,
+                child: _HistoryCard(session: session),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({required this.session});
 
   final Session session;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isOpen = session.isOpen;
 
-    return Container(
-      width: 58,
-      padding: const EdgeInsets.symmetric(vertical: AppDimens.sm),
-      decoration: BoxDecoration(
-        color: isOpen ? AppColors.accent : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(
-          color: isOpen ? AppColors.accentDark : AppColors.line,
-          width: 2,
+    return StickerCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SessionDashboardScreen(sessionId: session.id),
         ),
       ),
+      background: AppColors.surface,
+      padding: const EdgeInsets.all(AppDimens.md),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            session.date.day.toString().padLeft(2, '0'),
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: isOpen ? AppColors.paper : AppColors.ink,
-              fontSize: 24,
-            ),
-          ),
-          Text(
-            Formatters.compactDate(session.date).split(' ').last.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isOpen ? AppColors.paper : AppColors.inkFaint,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    this.icon,
-    this.filled = false,
-    this.muted = false,
-  });
-
-  final String label;
-  final IconData? icon;
-  final bool filled;
-  final bool muted;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = filled
-        ? AppColors.paper
-        : muted
-            ? AppColors.inkFaint
-            : AppColors.inkSoft;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(
-        color: filled ? AppColors.ink : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-        border: Border.all(
-          color: filled ? AppColors.ink : AppColors.line,
-          width: 1.4,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: foreground),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: foreground,
-                  fontSize: 11,
-                  letterSpacing: 0.3,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  Formatters.compactDate(session.date).toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10.5,
+                  ),
                 ),
+              ),
+              Text(
+                Formatters.shortDate(session.date),
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 10.5),
+              ),
+            ],
+          ),
+          const Divider(height: AppDimens.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  session.weekLabel?.isNotEmpty == true
+                      ? session.weekLabel!
+                      : Formatters.relativeDay(session.date),
+                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 15),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.groups_rounded, size: 15, color: AppColors.inkSoft),
+              const SizedBox(width: 3),
+              Text(
+                '${session.attendeeCount}',
+                style: theme.textTheme.labelLarge?.copyWith(fontSize: 13),
+              ),
+            ],
           ),
         ],
       ),

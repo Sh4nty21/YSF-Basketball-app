@@ -73,7 +73,10 @@ class TeamCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.paper.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(AppDimens.radiusPill),
@@ -140,8 +143,7 @@ class TeamCard extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  for (final member in team.members)
-                    _MemberRow(member: member),
+                  for (final member in team.members) _MemberRow(member: member),
                 ],
               ),
             ),
@@ -155,10 +157,7 @@ class TeamCard extends StatelessWidget {
                 AppDimens.lg,
                 AppDimens.lg,
               ),
-              child: _ResultButtons(
-                onTap: onRecordResult!,
-                busy: recording,
-              ),
+              child: _ResultButtons(onTap: onRecordResult!, busy: recording),
             ),
         ],
       ),
@@ -190,7 +189,9 @@ class _CompositionChip extends StatelessWidget {
         const SizedBox(width: 2),
         Text(
           level.label.toLowerCase(),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontSize: 11.5),
         ),
       ],
     );
@@ -285,20 +286,22 @@ class _ResultButtons extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _ResultButton(
+          child: _StickerResultButton(
             label: 'Record win',
             icon: Icons.emoji_events_rounded,
-            color: AppColors.success,
+            background: AppColors.success,
+            foreground: AppColors.paper,
             busy: busy,
             onTap: () => onTap(TeamResult.win),
           ),
         ),
         const SizedBox(width: AppDimens.sm),
         Expanded(
-          child: _ResultButton(
+          child: _StickerResultButton(
             label: 'Record loss',
             icon: Icons.close_rounded,
-            color: AppColors.accent,
+            background: AppColors.paper,
+            foreground: AppColors.ink,
             busy: busy,
             onTap: () => onTap(TeamResult.lose),
           ),
@@ -308,57 +311,86 @@ class _ResultButtons extends StatelessWidget {
   }
 }
 
-class _ResultButton extends StatelessWidget {
-  const _ResultButton({
+/// A compact sticker-style button — same hard-shadow/press-collapse language
+/// as [YsfPrimaryButton], but supports an arbitrary fill (green for a win)
+/// rather than that widget's fixed brand-red, and fits a two-up row inside a
+/// team card.
+class _StickerResultButton extends StatefulWidget {
+  const _StickerResultButton({
     required this.label,
     required this.icon,
-    required this.color,
+    required this.background,
+    required this.foreground,
     required this.busy,
     required this.onTap,
   });
 
   final String label;
   final IconData icon;
-  final Color color;
+  final Color background;
+  final Color foreground;
   final bool busy;
   final VoidCallback onTap;
 
   @override
+  State<_StickerResultButton> createState() => _StickerResultButtonState();
+}
+
+class _StickerResultButtonState extends State<_StickerResultButton> {
+  bool _down = false;
+
+  void _setDown(bool value) {
+    if (widget.busy) return;
+    if (_down != value) setState(() => _down = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      child: InkWell(
-        onTap: busy ? null : onTap,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-            border: Border.all(color: AppColors.line, width: AppDimens.hairline),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (busy)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
-                )
-              else
-                Icon(icon, size: 15, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11.5,
-                    ),
+    const dropUp = 3.0;
+    final drop = _down ? 1.0 : dropUp;
+
+    return GestureDetector(
+      onTapDown: (_) => _setDown(true),
+      onTapUp: (_) => _setDown(false),
+      onTapCancel: () => _setDown(false),
+      onTap: widget.busy ? null : widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 70),
+        transform: Matrix4.translationValues(dropUp - drop, dropUp - drop, 0),
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: widget.background,
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          border: Border.all(color: AppColors.ink, width: AppDimens.border),
+          boxShadow: [
+            BoxShadow(color: AppColors.ink, offset: Offset(drop, drop)),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (widget.busy)
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: widget.foreground,
+                ),
+              )
+            else
+              Icon(widget.icon, size: 16, color: widget.foreground),
+            const SizedBox(width: 6),
+            Text(
+              widget.label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: widget.foreground,
+                fontWeight: FontWeight.w800,
+                fontSize: 11.5,
+                letterSpacing: 0.4,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

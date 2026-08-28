@@ -5,6 +5,7 @@ import '../core/theme/app_dimens.dart';
 import '../models/attendee.dart';
 import '../models/enums.dart';
 import 'skill_level_badge.dart';
+import 'sticker_card.dart';
 
 /// One row in the live check-in list.
 ///
@@ -36,6 +37,7 @@ class AttendeeListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accentColor = SkillLevelBadge.chartColorFor(attendee.skillLevel);
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(
@@ -44,10 +46,7 @@ class AttendeeListTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _ArrivalMarker(
-            index: index,
-            level: attendee.skillLevel,
-          ),
+          _ArrivalMarker(index: index, level: attendee.skillLevel),
 
           const SizedBox(width: AppDimens.md),
 
@@ -139,10 +138,7 @@ class AttendeeListTile extends StatelessWidget {
 
           const SizedBox(width: AppDimens.sm),
 
-          SkillLevelBadge(
-            level: attendee.skillLevel,
-            compact: true,
-          ),
+          SkillLevelBadge(level: attendee.skillLevel, compact: true),
 
           // Delete button.
           if (onDelete != null) ...[
@@ -151,10 +147,7 @@ class AttendeeListTile extends StatelessWidget {
             IconButton(
               onPressed: onDelete,
               tooltip: 'Delete registration',
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                size: 21,
-              ),
+              icon: const Icon(Icons.delete_outline_rounded, size: 21),
             ),
           ],
 
@@ -167,22 +160,32 @@ class AttendeeListTile extends StatelessWidget {
       ),
     );
 
-    if (onTap == null) return content;
-
-    return InkWell(
+    return StickerCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      child: content,
+      padding: EdgeInsets.zero,
+      radius: AppDimens.radiusMd,
+      dropShadow: false,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(
+          AppDimens.radiusMd - AppDimens.border,
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 5, color: accentColor),
+              Expanded(child: content),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
 /// Arrival number in a circle tinted by skill tier.
 class _ArrivalMarker extends StatelessWidget {
-  const _ArrivalMarker({
-    required this.index,
-    required this.level,
-  });
+  const _ArrivalMarker({required this.index, required this.level});
 
   final int index;
   final SkillLevel level;
@@ -198,17 +201,13 @@ class _ArrivalMarker extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: color,
-          width: 1.6,
-        ),
+        border: Border.all(color: color, width: 1.6),
       ),
       child: Text(
         '$index',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: AppColors.ink,
-              fontSize: 13,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(color: AppColors.ink, fontSize: 13),
       ),
     );
   }
@@ -221,12 +220,7 @@ class _Dot extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 6),
-      child: Text(
-        '·',
-        style: TextStyle(
-          color: AppColors.inkFaint,
-        ),
-      ),
+      child: Text('·', style: TextStyle(color: AppColors.inkFaint)),
     );
   }
 }
@@ -249,11 +243,11 @@ class _LateRegistrationBadge extends StatelessWidget {
       child: Text(
         'LATE REGISTRATION',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.accent,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
+          color: AppColors.accent,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }

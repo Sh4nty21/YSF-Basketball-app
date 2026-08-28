@@ -6,20 +6,20 @@ import 'app_dimens.dart';
 
 /// The single [ThemeData] for the app (spec Section 8).
 ///
-/// Typography follows the brief: **Baloo 2** — a bold, rounded, energetic
-/// display face that reads like the logo's marker lettering — for headings and
-/// buttons, and **Inter** for body copy and form fields.
+/// Typography follows the brief: **Be Vietnam Pro** — a bold, high-impact
+/// display face — for headings and buttons, and **Inter** for body copy and
+/// form fields.
 ///
 /// `google_fonts` downloads these on first launch and caches them; if the
 /// device is offline it silently falls back to the platform font, so nothing
 /// breaks.
 abstract final class AppTheme {
   static TextTheme _textTheme() {
-    final display = GoogleFonts.baloo2TextTheme();
+    final display = GoogleFonts.beVietnamProTextTheme();
     final body = GoogleFonts.interTextTheme();
 
     return TextTheme(
-      // Display / headline slots -> Baloo 2, heavy and tight.
+      // Display / headline slots -> Be Vietnam Pro, heavy and tight.
       displayLarge: display.displayLarge?.copyWith(
         fontWeight: FontWeight.w800,
         letterSpacing: -0.5,

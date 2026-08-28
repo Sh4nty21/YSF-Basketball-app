@@ -74,8 +74,21 @@
 
   /* ── Session id from the QR URL: ?session=12 ───────────────────────── */
   function readSessionId() {
-    var raw = new URLSearchParams(window.location.search).get("session");
-    if (raw === null) return null;
+    var params = new URLSearchParams(window.location.search);
+    var raw = params.get("session");
+    if (raw === null) {
+      // Some address bars / share sheets mangle query-string casing (e.g.
+      // Caps Lock while typing during local testing) — URLSearchParams.get
+      // is case-sensitive, so fall back to a case-insensitive scan rather
+      // than incorrectly treating a real session link as missing.
+      for (var pair of params.entries()) {
+        if (pair[0].toLowerCase() === "session") {
+          raw = pair[1];
+          break;
+        }
+      }
+    }
+    if (raw === null || raw === undefined) return null;
     var value = parseInt(raw, 10);
     return Number.isInteger(value) && value > 0 ? value : null;
   }

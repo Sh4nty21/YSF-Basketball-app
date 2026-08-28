@@ -46,7 +46,10 @@ class StickerCard extends StatelessWidget {
             ? [
                 BoxShadow(
                   color: shadowColor ?? borderColor,
-                  offset: const Offset(0, AppDimens.stickerDrop),
+                  offset: const Offset(
+                    AppDimens.stickerDrop,
+                    AppDimens.stickerDrop,
+                  ),
                   blurRadius: 0,
                 ),
               ]

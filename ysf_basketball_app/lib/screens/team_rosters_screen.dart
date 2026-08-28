@@ -95,7 +95,8 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Reshuffle every team?',
-      message: 'All ${snapshot.playersOnTeams} placements are thrown out and '
+      message:
+          'All ${snapshot.playersOnTeams} placements are thrown out and '
           'redrafted from scratch.'
           '${lateAdds > 0 ? ' That includes the $lateAdds late registration${lateAdds == 1 ? '' : 's'}.' : ''}',
       confirmLabel: 'Yes, reshuffle',
@@ -153,23 +154,23 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
       body: switch (teams) {
         AsyncLoading() => const LoadingView(message: 'Loading rosters…'),
         AsyncError(:final error) => ErrorView(
-            error: error,
-            onRetry: () =>
-                ref.read(teamsProvider(widget.sessionId).notifier).refresh(),
-          ),
+          error: error,
+          onRetry: () =>
+              ref.read(teamsProvider(widget.sessionId).notifier).refresh(),
+        ),
         AsyncData(:final value) => _Rosters(
-            snapshot: value,
-            busyAttendeeId: _busyAttendeeId,
-            busyTeamId: _busyTeamId,
-            regenerating: _regenerating,
-            onAddLatePlayer: _addLatePlayer,
-            onRecordResult: _recordResult,
-            onRegenerate: () => _regenerate(value),
-            onRefresh: () async {
-              await ref.read(teamsProvider(widget.sessionId).notifier).refresh();
-              ref.invalidate(unassignedAttendeesProvider(widget.sessionId));
-            },
-          ),
+          snapshot: value,
+          busyAttendeeId: _busyAttendeeId,
+          busyTeamId: _busyTeamId,
+          regenerating: _regenerating,
+          onAddLatePlayer: _addLatePlayer,
+          onRecordResult: _recordResult,
+          onRegenerate: () => _regenerate(value),
+          onRefresh: () async {
+            await ref.read(teamsProvider(widget.sessionId).notifier).refresh();
+            ref.invalidate(unassignedAttendeesProvider(widget.sessionId));
+          },
+        ),
         _ => const LoadingView(message: 'Loading rosters…'),
       },
     );
@@ -205,7 +206,8 @@ class _Rosters extends StatelessWidget {
       return EmptyState(
         icon: Icons.shield_outlined,
         title: 'No teams yet',
-        message: 'Go back to the session and tap "Generate teams" once enough '
+        message:
+            'Go back to the session and tap "Generate teams" once enough '
             'players have checked in.',
         action: YsfSecondaryButton(
           label: 'Back to session',
@@ -227,35 +229,53 @@ class _Rosters extends StatelessWidget {
           AppDimens.xxl,
         ),
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${snapshot.teams.length} TEAMS',
-                      style: theme.textTheme.headlineMedium?.copyWith(fontSize: 26),
-                    ),
-                    Text(
-                      '${snapshot.playersOnTeams} players · '
-                      '${snapshot.format.label} format',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          PageTitle(
+            'Rosters',
+            subtitle:
+                '${snapshot.playersOnTeams} players · '
+                '${snapshot.format.label} format',
           ),
           const SizedBox(height: AppDimens.lg),
 
           // ── Late arrivals waiting for a team ────────────────────────────
           if (snapshot.unassigned.isNotEmpty) ...[
-            SectionLabel('Waiting to be placed (${snapshot.unassigned.length})'),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.lg,
+                vertical: AppDimens.sm,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.ink,
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_rounded,
+                    color: AppColors.accent,
+                    size: 18,
+                  ),
+                  const SizedBox(width: AppDimens.sm),
+                  Expanded(
+                    child: Text(
+                      '${snapshot.unassigned.length} unassigned '
+                              '${snapshot.unassigned.length == 1 ? 'player' : 'players'} waiting'
+                          .toUpperCase(),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimens.xs),
             StickerCard(
               borderColor: AppColors.accent,
               shadowColor: AppColors.accentDark,
+              radius: AppDimens.radiusSm,
               padding: const EdgeInsets.all(AppDimens.md),
               child: Column(
                 children: [
@@ -286,19 +306,50 @@ class _Rosters extends StatelessWidget {
           ],
 
           // ── The rosters ────────────────────────────────────────────────
-          const SectionLabel('Rosters'),
-          for (final team in snapshot.teams)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppDimens.lg),
-              child: TeamCard(
-                team: team,
-                playersPerTeam: snapshot.format.playersPerTeam,
-                recording: busyTeamId == team.id,
-                onRecordResult: busyTeamId != null && busyTeamId != team.id
-                    ? null
-                    : (result) => onRecordResult(team.id, result),
-              ),
-            ),
+          const SectionLabel('Team rosters'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 900) {
+                return Column(
+                  children: [
+                    for (final team in snapshot.teams)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppDimens.lg),
+                        child: TeamCard(
+                          team: team,
+                          playersPerTeam: snapshot.format.playersPerTeam,
+                          recording: busyTeamId == team.id,
+                          onRecordResult:
+                              busyTeamId != null && busyTeamId != team.id
+                              ? null
+                              : (result) => onRecordResult(team.id, result),
+                        ),
+                      ),
+                  ],
+                );
+              }
+
+              return Wrap(
+                spacing: AppDimens.lg,
+                runSpacing: AppDimens.lg,
+                children: [
+                  for (final team in snapshot.teams)
+                    SizedBox(
+                      width: (constraints.maxWidth - AppDimens.lg) / 2,
+                      child: TeamCard(
+                        team: team,
+                        playersPerTeam: snapshot.format.playersPerTeam,
+                        recording: busyTeamId == team.id,
+                        onRecordResult:
+                            busyTeamId != null && busyTeamId != team.id
+                            ? null
+                            : (result) => onRecordResult(team.id, result),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
 
           const SizedBox(height: AppDimens.sm),
           YsfSecondaryButton(
@@ -367,7 +418,10 @@ class _UnassignedRow extends StatelessWidget {
                   children: [
                     SkillLevelBadge(level: attendee.skillLevel, compact: true),
                     const SizedBox(width: AppDimens.sm),
-                    Text('Age ${attendee.age}', style: theme.textTheme.bodySmall),
+                    Text(
+                      'Age ${attendee.age}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ],

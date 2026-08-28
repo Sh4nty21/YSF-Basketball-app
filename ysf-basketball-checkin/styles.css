@@ -22,14 +22,14 @@
   --surface: #f7f6f4;
   --line: #e4e2de;
 
-  --radius-lg: 22px;
-  --radius-md: 14px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
   --radius-pill: 999px;
 
-  --font-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-display: "Be Vietnam Pro", "Trebuchet MS", system-ui, sans-serif;
   --font-body: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  --shadow-card: 0 18px 40px -24px rgba(26, 26, 26, 0.4);
+  --shadow-card: 6px 6px 0px 0px var(--ink);
 }
 
 * { box-sizing: border-box; }
@@ -85,11 +85,40 @@ body {
 
 .masthead { text-align: center; margin-bottom: 26px; }
 
+.open-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  transform: rotate(-3deg);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  margin-bottom: 16px;
+}
+
+.logo-frame {
+  display: inline-block;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  box-shadow: 5px 5px 0 0 var(--ink);
+  transform: rotate(-1deg);
+  margin-bottom: 6px;
+}
+
 .logo {
+  display: block;
   width: 168px;
   height: auto;
-  /* The source logo is a JPG on white, so it blends into the page rather than
-     sitting in a visible box. */
+  /* The source logo is a JPG on white, so it blends into the frame's white
+     background rather than sitting in a visible box of its own. */
   mix-blend-mode: multiply;
 }
 
@@ -123,7 +152,7 @@ body {
 
 .card {
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: 3px solid var(--ink);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 22px 20px;
@@ -149,6 +178,16 @@ body {
 /* ── Form fields ──────────────────────────────────────────────────────── */
 
 .field { display: flex; flex-direction: column; gap: 8px; border: 0; margin: 0; padding: 0; }
+
+/* Name/age sit side by side once there's room; stack on narrow phones so
+   neither field gets cramped. */
+.field-row { display: flex; flex-direction: column; gap: 20px; }
+
+@media (min-width: 480px) {
+  .field-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+}
+
+.input--number { text-align: center; }
 
 .label {
   font-family: var(--font-display);
@@ -252,9 +291,9 @@ body {
   font-weight: 800;
   font-size: 1.12rem;
   letter-spacing: 0.01em;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   padding: 16px 24px;
-  border: 2.5px solid transparent;
+  border: 2px solid var(--ink);
   cursor: pointer;
   width: 100%;
   min-height: 56px;
@@ -262,26 +301,26 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
 .btn--primary {
   background: var(--accent);
   color: var(--paper);
-  box-shadow: 0 6px 0 0 var(--accent-dark);
+  box-shadow: 4px 4px 0px 0px var(--ink);
 }
 
-.btn--primary:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 0 var(--accent-dark); }
+.btn--primary:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0px 0px var(--ink); }
 
 .btn--ghost {
-  background: transparent;
+  background: var(--paper);
   color: var(--ink);
-  border-color: var(--ink);
   font-size: 1rem;
   min-height: 50px;
+  box-shadow: 4px 4px 0px 0px var(--ink);
 }
 
-.btn--ghost:active { transform: translateY(2px); }
+.btn--ghost:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px 0px var(--ink); }
 
 .btn:disabled { opacity: 0.65; cursor: progress; }
 
@@ -325,15 +364,19 @@ body {
 
 .footer {
   margin-top: 24px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
   text-align: center;
   font-size: 0.78rem;
-  color: var(--ink-faint);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.footer .dot { margin: 0 6px; }
+.footer .dot { margin: 0 6px; color: var(--accent); }
 
 .fineprint {
   margin: 0;

@@ -21,8 +21,7 @@ class PasscodeGateScreen extends ConsumerStatefulWidget {
   const PasscodeGateScreen({super.key});
 
   @override
-  ConsumerState<PasscodeGateScreen> createState() =>
-      _PasscodeGateScreenState();
+  ConsumerState<PasscodeGateScreen> createState() => _PasscodeGateScreenState();
 }
 
 class _PasscodeGateScreenState extends ConsumerState<PasscodeGateScreen> {
@@ -69,92 +68,146 @@ class _PasscodeGateScreenState extends ConsumerState<PasscodeGateScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: CourtArcBackdrop(
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimens.screen),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: AppDimens.xxl),
-                const Center(child: YsfLogo(height: 64)),
-                const SizedBox(height: AppDimens.xl),
-                Text(
-                  'ORGANIZER ACCESS',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium?.copyWith(fontSize: 27),
-                ),
-                const SizedBox(height: AppDimens.sm),
-                Text(
-                  'Enter the passcode to open the app. This device will '
-                  'remember it, so you will not be asked again.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppDimens.xl),
-                StickerCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _controller,
-                        obscureText: _obscure,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        autofocus: true,
-                        onChanged: (_) {
-                          if (_error != null) setState(() => _error = null);
-                        },
-                        onSubmitted: (_) => _checking ? null : _submit(),
-                        decoration: InputDecoration(
-                          labelText: 'Passcode',
-                          prefixIcon: const Icon(Icons.lock_rounded),
-                          suffixIcon: IconButton(
-                            tooltip: _obscure ? 'Show' : 'Hide',
-                            onPressed: () =>
-                                setState(() => _obscure = !_obscure),
-                            icon: Icon(
-                              _obscure
-                                  ? Icons.visibility_rounded
-                                  : Icons.visibility_off_rounded,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(color: AppColors.surface),
+        child: CustomPaint(
+          painter: _DotGridPainter(),
+          child: CourtArcBackdrop(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimens.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: AppDimens.xxl),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(AppDimens.md),
+                        decoration: const BoxDecoration(
+                          color: AppColors.paper,
+                          shape: BoxShape.circle,
+                          border: Border.fromBorderSide(
+                            BorderSide(
+                              color: AppColors.ink,
+                              width: AppDimens.border,
                             ),
                           ),
-                        ),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: AppDimens.md),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.error_rounded,
-                                color: AppColors.accentDark, size: 18),
-                            const SizedBox(width: AppDimens.sm),
-                            Expanded(
-                              child: Text(
-                                _error!,
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.accentDark),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.ink,
+                              offset: Offset(
+                                AppDimens.stickerDrop,
+                                AppDimens.stickerDrop,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ],
-                  ),
+                        child: const YsfLogo(height: 56),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.xl),
+                    Text(
+                      'ORGANIZER ACCESS',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontSize: 27,
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.sm),
+                    Text(
+                      'Enter the passcode to open the app. This device will '
+                      'remember it, so you will not be asked again.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppDimens.xl),
+                    StickerCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: _controller,
+                            obscureText: _obscure,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            autofocus: true,
+                            onChanged: (_) {
+                              if (_error != null) setState(() => _error = null);
+                            },
+                            onSubmitted: (_) => _checking ? null : _submit(),
+                            decoration: InputDecoration(
+                              labelText: 'Passcode',
+                              prefixIcon: const Icon(Icons.lock_rounded),
+                              suffixIcon: IconButton(
+                                tooltip: _obscure ? 'Show' : 'Hide',
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                                icon: Icon(
+                                  _obscure
+                                      ? Icons.visibility_rounded
+                                      : Icons.visibility_off_rounded,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: AppDimens.md),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.error_rounded,
+                                  color: AppColors.accentDark,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: AppDimens.sm),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: AppColors.accentDark,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.lg),
+                    YsfPrimaryButton(
+                      label: 'Continue',
+                      busyLabel: 'Checking…',
+                      icon: Icons.arrow_forward_rounded,
+                      isBusy: _checking,
+                      onPressed: _checking ? null : _submit,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppDimens.lg),
-                YsfPrimaryButton(
-                  label: 'Continue',
-                  busyLabel: 'Checking…',
-                  icon: Icons.arrow_forward_rounded,
-                  isBusy: _checking,
-                  onPressed: _checking ? null : _submit,
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Faint dot-grid texture behind the passcode screen, matching the mockup's
+/// decorative backdrop. Purely visual.
+class _DotGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = AppColors.line;
+    const spacing = 24.0;
+    for (double y = 0; y < size.height; y += spacing) {
+      for (double x = 0; x < size.width; x += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

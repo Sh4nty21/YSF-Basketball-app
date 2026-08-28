@@ -16,19 +16,19 @@ abstract final class AppDimens {
   static const double screen = 20;
 
   // Corner radii.
-  static const double radiusSm = 10;
-  static const double radiusMd = 16;
-  static const double radiusLg = 22;
+  static const double radiusSm = 4;
+  static const double radiusMd = 8;
+  static const double radiusLg = 12;
   static const double radiusPill = 999;
 
   /// Marker-weight outline used on cards and buttons.
-  static const double border = 2.5;
+  static const double border = 2;
 
   /// Thinner outline for quiet rows.
   static const double hairline = 1.5;
 
-  /// Vertical offset of the "sticker" shadow under pressable surfaces.
-  static const double stickerDrop = 5;
+  /// Diagonal offset of the hard "sticker" shadow under pressable surfaces.
+  static const double stickerDrop = 4;
 
   /// Minimum tap target — organizers use this one-handed, courtside.
   static const double tapTarget = 52;

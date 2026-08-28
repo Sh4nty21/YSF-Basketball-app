@@ -146,7 +146,7 @@ class _PressableButtonState extends State<_PressableButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 70),
           transform: Matrix4.translationValues(
-            0,
+            AppDimens.stickerDrop - drop,
             AppDimens.stickerDrop - drop,
             0,
           ),
@@ -158,12 +158,12 @@ class _PressableButtonState extends State<_PressableButton> {
           ),
           decoration: BoxDecoration(
             color: widget.background,
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             border: Border.all(color: widget.borderColor, width: AppDimens.border),
             boxShadow: [
               BoxShadow(
                 color: widget.shadow,
-                offset: Offset(0, drop),
+                offset: Offset(drop, drop),
                 blurRadius: 0,
               ),
             ],

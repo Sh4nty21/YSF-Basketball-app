@@ -16,7 +16,7 @@ dependencies:
   # HTTP client for the backend (spec Section 7).
   http: ^1.2.2
 
-  # Brand typography: Baloo 2 (display) + Inter (body) per spec Section 8.
+  # Brand typography: Be Vietnam Pro (display) + Inter (body) per spec Section 8.
   google_fonts: ^6.2.1
 
   # Shows the session QR code so participants can scan straight off the phone.

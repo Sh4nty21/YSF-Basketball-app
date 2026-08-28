@@ -213,25 +213,61 @@ class _DashboardState extends ConsumerState<_Dashboard> {
           _SessionHeader(session: session, onToggleCheckin: _toggleCheckin),
           const SizedBox(height: AppDimens.lg),
 
-          _LiveCountCard(
-            attendees: list,
-            format: session.format,
-            isLoading: attendees.isLoading,
-            isOpen: session.isOpen,
-          ),
-          const SizedBox(height: AppDimens.lg),
+          // ── Bento row: live count + stacked primary actions ──────────────
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final liveCount = _LiveCountCard(
+                attendees: list,
+                format: session.format,
+                isLoading: attendees.isLoading,
+                isOpen: session.isOpen,
+              );
+              final actions = Column(
+                children: [
+                  _TallActionButton(
+                    label: (teams?.hasTeams ?? false)
+                        ? 'Reshuffle teams'
+                        : 'Generate teams',
+                    icon: Icons.shuffle_rounded,
+                    busy: _generating,
+                    onPressed: list.isEmpty || _generating
+                        ? null
+                        : () => _generateTeams(list),
+                  ),
+                  const SizedBox(height: AppDimens.sm),
+                  YsfSecondaryButton(
+                    label: 'Show scan code',
+                    icon: Icons.qr_code_2_rounded,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SessionQrScreen(session: session),
+                      ),
+                    ),
+                  ),
+                ],
+              );
 
-          // ── Actions ─────────────────────────────────────────────────────
-          YsfPrimaryButton(
-            label: (teams?.hasTeams ?? false)
-                ? 'Reshuffle teams'
-                : 'Generate teams',
-            busyLabel: 'Drafting…',
-            icon: Icons.shuffle_rounded,
-            isBusy: _generating,
-            onPressed: list.isEmpty || _generating
-                ? null
-                : () => _generateTeams(list),
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  children: [
+                    liveCount,
+                    const SizedBox(height: AppDimens.md),
+                    actions,
+                  ],
+                );
+              }
+
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: liveCount),
+                    const SizedBox(width: AppDimens.md),
+                    Expanded(child: actions),
+                  ],
+                ),
+              );
+            },
           ),
           if (list.isEmpty)
             const Padding(
@@ -242,43 +278,53 @@ class _DashboardState extends ConsumerState<_Dashboard> {
                 style: TextStyle(color: AppColors.inkFaint, fontSize: 12.5),
               ),
             ),
-          const SizedBox(height: AppDimens.sm),
+          const SizedBox(height: AppDimens.md),
 
-          Row(
-            children: [
-              Expanded(
-                child: YsfSecondaryButton(
-                  label: 'QR code',
-                  icon: Icons.qr_code_2_rounded,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SessionQrScreen(session: session),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppDimens.sm),
-              Expanded(
-                child: YsfSecondaryButton(
-                  label: 'Add player',
-                  icon: Icons.person_add_alt_1_rounded,
-                  onPressed: _openManualAdd,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final addPlayer = YsfSecondaryButton(
+                label: 'Add player',
+                icon: Icons.person_add_alt_1_rounded,
+                onPressed: _openManualAdd,
+              );
+              final viewRosters = (teams?.hasTeams ?? false)
+                  ? YsfSecondaryButton(
+                      label: 'View rosters (${teams!.teams.length})',
+                      icon: Icons.shield_rounded,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              TeamRostersScreen(sessionId: _sessionId),
+                        ),
+                      ),
+                    )
+                  : null;
+
+              // Narrow phones don't have room for both labels side by side
+              // without clipping — stack instead of truncating.
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  children: [
+                    addPlayer,
+                    if (viewRosters != null) ...[
+                      const SizedBox(height: AppDimens.sm),
+                      viewRosters,
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: addPlayer),
+                  if (viewRosters != null) ...[
+                    const SizedBox(width: AppDimens.sm),
+                    Expanded(child: viewRosters),
+                  ],
+                ],
+              );
+            },
           ),
-          if (teams?.hasTeams ?? false) ...[
-            const SizedBox(height: AppDimens.sm),
-            YsfSecondaryButton(
-              label: 'View rosters (${teams!.teams.length} teams)',
-              icon: Icons.shield_rounded,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TeamRostersScreen(sessionId: _sessionId),
-                ),
-              ),
-            ),
-          ],
           if ((teams?.unassigned.length ?? 0) > 0)
             Padding(
               padding: const EdgeInsets.only(top: AppDimens.sm),
@@ -320,17 +366,12 @@ class _DashboardState extends ConsumerState<_Dashboard> {
               child: LoadingView(message: 'Loading check-ins…'),
             ),
             _ when list.isEmpty => const _NoAttendeesYet(),
-            _ => StickerCard(
-              padding: const EdgeInsets.symmetric(vertical: AppDimens.xs),
-              child: Column(
-                children: [
-                  for (var index = 0; index < list.length; index++) ...[
-                    if (index > 0)
-                      const Divider(
-                        indent: AppDimens.md,
-                        endIndent: AppDimens.md,
-                      ),
-                    AttendeeListTile(
+            _ => Column(
+              children: [
+                for (var index = 0; index < list.length; index++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppDimens.sm),
+                    child: AttendeeListTile(
                       attendee: list[index],
                       index: index + 1,
                       trailing: IconButton(
@@ -345,7 +386,8 @@ class _DashboardState extends ConsumerState<_Dashboard> {
                           final confirmed = await showConfirmDialog(
                             context,
                             title: 'Delete attendee?',
-                            message: 'Remove ${attendee.name} from this session?',
+                            message:
+                                'Remove ${attendee.name} from this session?',
                             confirmLabel: 'Delete',
                             icon: Icons.delete_outline_rounded,
                             destructive: true,
@@ -369,9 +411,8 @@ class _DashboardState extends ConsumerState<_Dashboard> {
                         },
                       ), // IconButton
                     ), // AttendeeListTile
-                  ],
-                ],
-              ),
+                  ), // Padding
+              ],
             ),
           },
         ],
@@ -417,7 +458,8 @@ class _SessionHeader extends StatelessWidget {
   }
 }
 
-/// Open/closed indicator that doubles as the toggle.
+/// Open/closed indicator that doubles as the toggle — styled as a real
+/// sliding switch (track + dot) per the mockup, rather than a lock-icon pill.
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.session, required this.onTap});
 
@@ -430,34 +472,96 @@ class _StatusPill extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDimens.md,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: isOpen ? AppColors.accentTint : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-          border: Border.all(
-            color: isOpen ? AppColors.accent : AppColors.line,
-            width: 1.8,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
-              size: 13,
-              color: isOpen ? AppColors.accent : AppColors.inkFaint,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 44,
+            height: 24,
+            padding: const EdgeInsets.all(2),
+            alignment: isOpen ? Alignment.centerRight : Alignment.centerLeft,
+            decoration: BoxDecoration(
+              color: isOpen ? AppColors.ink : AppColors.surface,
+              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+              border: Border.all(color: AppColors.ink, width: 1.8),
             ),
-            const SizedBox(width: 5),
-            Text(
-              isOpen ? 'CHECK-IN OPEN' : 'CLOSED',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
                 color: isOpen ? AppColors.accent : AppColors.inkFaint,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.ink, width: 1.4),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isOpen ? 'CHECK-IN OPEN' : 'CLOSED',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: isOpen ? AppColors.ink : AppColors.inkFaint,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tall, centered icon-over-label primary action — the bento row's dominant
+/// button, matching the mockup's oversized "Generate Teams" tile instead of
+/// the standard horizontal primary button.
+class _TallActionButton extends StatelessWidget {
+  const _TallActionButton({
+    required this.label,
+    required this.icon,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null && !busy;
+
+    return StickerCard(
+      onTap: enabled ? onPressed : null,
+      background: enabled ? AppColors.accent : AppColors.inkFaint,
+      borderColor: Colors.transparent,
+      shadowColor: enabled ? AppColors.accentDark : Colors.transparent,
+      radius: AppDimens.radiusLg,
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.lg),
+      child: SizedBox(
+        height: 88,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (busy)
+              const SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  color: AppColors.paper,
+                ),
+              )
+            else
+              Icon(icon, size: 30, color: AppColors.paper),
+            const SizedBox(height: AppDimens.sm),
+            Text(
+              label.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppColors.paper,
+                fontSize: 16,
+                letterSpacing: 0.3,
               ),
             ),
           ],
