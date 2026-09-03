@@ -53,10 +53,11 @@ class ErrorView extends StatelessWidget {
 
   bool get _looksLikeConfig {
     final failure = error;
+    // Deliberately excludes `unauthorized` — that's "log in again", not a
+    // server-settings problem, and this app has no settings for it anymore.
     return failure is ApiException &&
         (failure.kind == ApiErrorKind.network ||
             failure.kind == ApiErrorKind.configuration ||
-            failure.kind == ApiErrorKind.unauthorized ||
             failure.kind == ApiErrorKind.malformed);
   }
 

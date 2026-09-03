@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../core/utils/formatters.dart';
+import '../models/enums.dart';
 import '../models/session.dart';
 import '../providers/session_providers.dart';
 import '../widgets/brand.dart';
@@ -15,20 +16,24 @@ import 'new_session_screen.dart';
 import 'session_dashboard_screen.dart';
 import 'settings_screen.dart';
 
-/// Home screen: every session, newest first (spec Section 7).
+/// Sessions for one sport, newest first — reached from the Sports Hub
+/// (NEW_PROJECT_PLAN.md multi-sport expansion). Same screen/flow every
+/// sport shares; only the backend query is scoped by [sport].
 class SessionListScreen extends ConsumerWidget {
-  const SessionListScreen({super.key});
+  const SessionListScreen({super.key, required this.sport});
+
+  final Sport sport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessions = ref.watch(sessionListProvider);
+    final sessions = ref.watch(sessionListProvider(sport));
 
     return Scaffold(
       body: CourtArcBackdrop(
         child: SafeArea(
           child: Column(
             children: [
-              const _Masthead(),
+              _Masthead(sport: sport),
               Expanded(
                 child: switch (sessions) {
                   AsyncLoading() => const LoadingView(
@@ -37,10 +42,11 @@ class SessionListScreen extends ConsumerWidget {
                   AsyncError(:final error) => ErrorView(
                     error: error,
                     onRetry: () =>
-                        ref.read(sessionListProvider.notifier).refresh(),
+                        ref.read(sessionListProvider(sport).notifier).refresh(),
                     onOpenSettings: () => _openSettings(context),
                   ),
-                  AsyncData(:final value) => _SessionList(sessions: value),
+                  AsyncData(:final value) =>
+                    _SessionList(sessions: value, sport: sport),
                   _ => const LoadingView(message: 'Loading sessions…'),
                 },
               ),
@@ -54,7 +60,7 @@ class SessionListScreen extends ConsumerWidget {
 
   Future<void> _openNewSession(BuildContext context, WidgetRef ref) async {
     final created = await Navigator.of(context).push<Session>(
-      MaterialPageRoute(builder: (_) => const NewSessionScreen()),
+      MaterialPageRoute(builder: (_) => NewSessionScreen(sport: sport)),
     );
     if (created == null || !context.mounted) return;
 
@@ -75,13 +81,15 @@ class SessionListScreen extends ConsumerWidget {
 }
 
 class _Masthead extends StatelessWidget {
-  const _Masthead();
+  const _Masthead({required this.sport});
+
+  final Sport sport;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppDimens.screen,
+        AppDimens.sm,
         AppDimens.md,
         AppDimens.md,
         AppDimens.sm,
@@ -89,20 +97,23 @@ class _Masthead extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const YsfLogo(height: 52),
-          const SizedBox(width: AppDimens.md),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded),
+            tooltip: 'Back to Sports',
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SESSIONS',
+                  '${sport.label.toUpperCase()} SESSIONS',
                   style: Theme.of(
                     context,
-                  ).textTheme.headlineMedium?.copyWith(fontSize: 27),
+                  ).textTheme.headlineMedium?.copyWith(fontSize: 24),
                 ),
                 Text(
-                  'Weekly Basketball Fellowship',
+                  'Weekly Fellowship',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -111,7 +122,7 @@ class _Masthead extends StatelessWidget {
           IconButton(
             onPressed: () => SessionListScreen._openSettings(context),
             icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Server settings',
+            tooltip: 'Settings',
           ),
         ],
       ),
@@ -120,9 +131,10 @@ class _Masthead extends StatelessWidget {
 }
 
 class _SessionList extends ConsumerWidget {
-  const _SessionList({required this.sessions});
+  const _SessionList({required this.sessions, required this.sport});
 
   final List<Session> sessions;
+  final Sport sport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,9 +149,9 @@ class _SessionList extends ConsumerWidget {
           label: 'Create the first session',
           icon: Icons.add_rounded,
           expand: false,
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const NewSessionScreen())),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => NewSessionScreen(sport: sport)),
+          ),
         ),
       );
     }
@@ -149,7 +161,7 @@ class _SessionList extends ConsumerWidget {
 
     return RefreshIndicator(
       color: AppColors.accent,
-      onRefresh: () => ref.read(sessionListProvider.notifier).refresh(),
+      onRefresh: () => ref.read(sessionListProvider(sport).notifier).refresh(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppDimens.screen,

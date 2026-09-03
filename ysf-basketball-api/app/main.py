@@ -18,17 +18,22 @@ from sqlalchemy import text
 
 from app import __version__
 from app.config import settings
-from app.database import engine
-from app.routers import attendees, checkin, results, sessions, stats, teams
+from app.database import SessionLocal, engine
+from app.repositories import admins_repo
+from app.routers import admin_auth, admins, attendees, checkin, results, sessions, stats, teams
+from app.security import hash_password
 
 
 DESCRIPTION = """
-Backend for the **Elevate YSF** weekly basketball fellowship.
+Backend for the **Elevate YSF** weekly sports fellowship.
 
 * `POST /api/v1/sessions/{id}/checkin` is **public** — it is what the QR-code
   web form calls.
-* Every other endpoint is organizer-facing. If `ORGANIZER_API_KEY` is set on
-  the server, send it as an `X-Organizer-Key` header.
+* Every other endpoint requires an admin session: `POST /api/v1/auth/login`
+  with a username/password, then send the returned token as
+  `Authorization: Bearer <token>`. Accounts are appointed only — there is no
+  public registration route; see `BOOTSTRAP_ADMIN_USERNAME` /
+  `BOOTSTRAP_ADMIN_PASSWORD` for how the very first super-admin is created.
 
 All team-balancing logic lives here, never in the app or the web form.
 """
@@ -61,6 +66,8 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────────────────────
 
 for router in (
+    admin_auth.router,
+    admins.router,
     sessions.router,
     checkin.router,
     attendees.router,
@@ -98,9 +105,51 @@ def health() -> dict:
         "status": "ok" if database_ok else "degraded",
         "version": __version__,
         "database": "connected" if database_ok else "unreachable",
-        "auth_required": settings.auth_enabled,
+        "auth_required": True,
         "error": error,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOOTSTRAP THE FIRST SUPER-ADMIN
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@app.on_event("startup")
+def bootstrap_first_super_admin() -> None:
+    """Create exactly one super-admin from env vars, but only while the
+    admins table is still empty.
+
+    There is no public registration route, and every other way to create an
+    admin account requires an existing super-admin — so without this, a
+    fresh deployment would have no way to ever create its first account.
+    Safe to leave ``BOOTSTRAP_ADMIN_USERNAME`` / ``BOOTSTRAP_ADMIN_PASSWORD``
+    set permanently: this is a no-op on every startup after the first.
+    """
+    if not settings.bootstrap_admin_username or not settings.bootstrap_admin_password:
+        return
+
+    db = SessionLocal()
+    try:
+        if admins_repo.list_all(db):
+            return
+        admin = admins_repo.create(
+            db,
+            username=settings.bootstrap_admin_username.strip().lower(),
+            display_name="Main Fellowship Admin",
+            password_hash=hash_password(settings.bootstrap_admin_password),
+            role="super_admin",
+            sport_tags=None,
+        )
+        admins_repo.log(
+            db,
+            actor=None,
+            actor_display_name=admin.display_name,
+            action="admin_created",
+            detail="bootstrap account created at startup",
+        )
+    finally:
+        db.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

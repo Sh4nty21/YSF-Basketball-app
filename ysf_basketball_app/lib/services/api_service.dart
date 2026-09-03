@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../core/config/app_settings.dart';
 import '../core/errors/api_exception.dart';
+import '../models/admin.dart';
 import '../models/attendee.dart';
 import '../models/enums.dart';
 import '../models/game_result.dart';
@@ -26,7 +27,14 @@ class ApiService {
 
   final AppSettings _settings;
   final http.Client _client;
-  
+
+  /// Set by `AuthController` on login/logout — never persisted here, this
+  /// class just carries whatever the current session token is (or null,
+  /// before login / after logout or revocation).
+  String? _authToken;
+
+  void setAuthToken(String? token) => _authToken = token;
+
   /// Generous enough for a free-tier server waking from sleep.
   static const Duration _timeout = Duration(seconds: 20);
 
@@ -34,11 +42,96 @@ class ApiService {
 
   void dispose() => _client.close();
 
+  // ── Auth (NEW_PROJECT_PLAN.md admin accounts) ─────────────────────────
+
+  /// `POST /auth/login` — the one endpoint reachable without a session yet.
+  Future<({String token, Admin admin})> login({
+    required String username,
+    required String password,
+  }) async {
+    final body = _asMap(
+      await _post('/auth/login', {'username': username, 'password': password}),
+    );
+    return (
+      token: body['token'] as String,
+      admin: Admin.fromJson(_asMap(body['admin'])),
+    );
+  }
+
+  /// `POST /auth/logout` — ends only the current device's session.
+  Future<void> logout() async {
+    await _post('/auth/logout', null);
+  }
+
+  /// `GET /auth/me` — confirms who's signed in, and whether a forced
+  /// password change is still pending, without decoding anything locally.
+  Future<Admin> me() async {
+    return Admin.fromJson(_asMap(await _get('/auth/me')));
+  }
+
+  /// `POST /auth/change-password` — also clears `must_change_password`,
+  /// whether this is the forced first-login change or a voluntary one.
+  Future<Admin> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final body = await _post('/auth/change-password', {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+    return Admin.fromJson(_asMap(body));
+  }
+
+  // ── Admin management (super-admin only) ───────────────────────────────
+
+  /// `GET /admins`
+  Future<List<Admin>> fetchAdmins() async {
+    final body = await _get('/admins');
+    return _asList(body)
+        .map((json) => Admin.fromJson(json))
+        .toList(growable: false);
+  }
+
+  /// `POST /admins` — the only way an admin account is ever created; no
+  /// public registration route exists anywhere.
+  Future<Admin> createAdmin({
+    required String username,
+    required String displayName,
+    required String password,
+    required AdminRole role,
+    List<String> sportTags = const [],
+  }) async {
+    final body = await _post('/admins', {
+      'username': username,
+      'display_name': displayName,
+      'password': password,
+      'role': role.wire,
+      'sport_tags': sportTags,
+    });
+    return Admin.fromJson(_asMap(body));
+  }
+
+  /// `PATCH /admins/{id}` — revoke (`isActive: false`) or reactivate.
+  Future<Admin> setAdminActive(int adminId, bool isActive) async {
+    final body = await _patch('/admins/$adminId', {'is_active': isActive});
+    return Admin.fromJson(_asMap(body));
+  }
+
+  /// `GET /admins/audit-log` — most recent first.
+  Future<List<AuditLogEntry>> fetchAuditLog() async {
+    final body = await _get('/admins/audit-log');
+    return _asList(body)
+        .map((json) => AuditLogEntry.fromJson(json))
+        .toList(growable: false);
+  }
+
   // ── Sessions ────────────────────────────────────────────────────────────
 
-  /// `GET /sessions` — history, most recent first.
-  Future<List<Session>> fetchSessions() async {
-    final body = await _get('/sessions');
+  /// `GET /sessions` — history, most recent first. `sport` scopes this to
+  /// one sport (the Sports Hub landing screen always passes one).
+  Future<List<Session>> fetchSessions({Sport? sport}) async {
+    final query = sport == null ? '' : '?sport=${sport.wire}';
+    final body = await _get('/sessions$query');
     return _asList(body)
         .map((json) => Session.fromJson(json))
         .toList(growable: false);
@@ -50,16 +143,24 @@ class ApiService {
   }
 
   /// `POST /sessions`
+  ///
+  /// `team_format` is always sent, even for volleyball/badminton, where it's
+  /// unused today (backend only requires it for basketball) — see the note
+  /// on `Session.format`.
   Future<Session> createSession({
     required DateTime date,
+    required Sport sport,
     required TeamFormat format,
+    BadmintonMode? badmintonMode,
     String? weekLabel,
   }) async {
     final body = await _post('/sessions', {
       'session_date': _dateOnly(date),
       'week_label':
           (weekLabel?.trim().isEmpty ?? true) ? null : weekLabel!.trim(),
+      'sport': sport.wire,
       'team_format': format.wire,
+      if (badmintonMode != null) 'badminton_mode': badmintonMode.wire,
     });
     return Session.fromJson(_asMap(body));
   }
@@ -203,8 +304,8 @@ class ApiService {
   Map<String, String> get _headers => {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        if (_settings.hasKey)
-          'X-Organizer-Key': _settings.organizerKey.trim(),
+        if (_authToken != null && _authToken!.isNotEmpty)
+          'Authorization': 'Bearer $_authToken',
       };
 
   Uri _parse(String url) {

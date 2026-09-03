@@ -8,6 +8,7 @@ import '../core/utils/feedback.dart';
 import '../models/attendee.dart';
 import '../models/enums.dart';
 import '../providers/session_providers.dart';
+import '../widgets/role_badge.dart';
 import '../widgets/section_label.dart';
 import '../widgets/skill_level_badge.dart';
 import '../widgets/sticker_card.dart';
@@ -18,10 +19,19 @@ import '../widgets/ysf_button.dart';
 /// For the player whose phone is dead, who cannot scan, or who turned up after
 /// check-in closed. Saved with `source='manual'` so stats can tell the two
 /// routes apart.
+///
+/// Volleyball collects a position instead of a skill level — skill is
+/// deliberately not used for volleyball team generation at all
+/// (NEW_PROJECT_PLAN.md). Every other sport keeps the skill-level picker.
 class ManualAddAttendeeScreen extends ConsumerStatefulWidget {
-  const ManualAddAttendeeScreen({super.key, required this.sessionId});
+  const ManualAddAttendeeScreen({
+    super.key,
+    required this.sessionId,
+    required this.sport,
+  });
 
   final int sessionId;
+  final Sport sport;
 
   @override
   ConsumerState<ManualAddAttendeeScreen> createState() =>
@@ -35,7 +45,10 @@ class _ManualAddAttendeeScreenState
   final _ageController = TextEditingController();
   final _nameFocus = FocusNode();
 
+  bool get _isVolleyball => widget.sport == Sport.volleyball;
+
   SkillLevel? _skill;
+  VolleyballPosition? _position;
   bool _submitting = false;
 
   /// Names added in this visit, so an organizer entering a queue of players
@@ -52,7 +65,11 @@ class _ManualAddAttendeeScreenState
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_skill == null) {
+    if (_isVolleyball && _position == null) {
+      context.showFailure('Pick a position first.');
+      return;
+    }
+    if (!_isVolleyball && _skill == null) {
       context.showFailure('Pick a skill level first.');
       return;
     }
@@ -65,7 +82,8 @@ class _ManualAddAttendeeScreenState
             NewAttendee(
               name: name,
               age: int.parse(_ageController.text.trim()),
-              skillLevel: _skill!,
+              skillLevel: _isVolleyball ? null : _skill,
+              position: _isVolleyball ? _position : null,
             ),
           );
       if (!mounted) return;
@@ -77,6 +95,7 @@ class _ManualAddAttendeeScreenState
         _nameController.clear();
         _ageController.clear();
         _skill = null;
+        _position = null;
       });
       _formKey.currentState?.reset();
       _nameFocus.requestFocus();
@@ -155,13 +174,23 @@ class _ManualAddAttendeeScreenState
             ),
             const SizedBox(height: AppDimens.lg),
 
-            const SectionLabel('Skill level'),
-            _SkillPicker(
-              value: _skill,
-              onChanged: _submitting
-                  ? null
-                  : (level) => setState(() => _skill = level),
-            ),
+            if (_isVolleyball) ...[
+              const SectionLabel('Position'),
+              _PositionPicker(
+                value: _position,
+                onChanged: _submitting
+                    ? null
+                    : (position) => setState(() => _position = position),
+              ),
+            ] else ...[
+              const SectionLabel('Skill level'),
+              _SkillPicker(
+                value: _skill,
+                onChanged: _submitting
+                    ? null
+                    : (level) => setState(() => _skill = level),
+              ),
+            ],
             const SizedBox(height: AppDimens.xl),
 
             YsfPrimaryButton(
@@ -317,6 +346,94 @@ class _SkillOption extends StatelessWidget {
                 ),
               ),
               if (!selected) SkillLevelBadge(level: level, compact: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Same 2x2 stacked-option pattern as [_SkillPicker], for volleyball's four
+/// positions instead of two skill tiers.
+class _PositionPicker extends StatelessWidget {
+  const _PositionPicker({required this.value, required this.onChanged});
+
+  final VolleyballPosition? value;
+  final ValueChanged<VolleyballPosition>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final position in VolleyballPosition.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppDimens.sm),
+            child: _PositionOption(
+              position: position,
+              selected: value == position,
+              onTap: onChanged == null ? null : () => onChanged!(position),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PositionOption extends StatelessWidget {
+  const _PositionOption({
+    required this.position,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final VolleyballPosition position;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fill = selected ? AppColors.tertiary : AppColors.surface;
+    final foreground = selected ? AppColors.paper : AppColors.ink;
+
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimens.lg,
+            vertical: AppDimens.md,
+          ),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+            border: Border.all(
+              color: selected ? AppColors.tertiary : AppColors.line,
+              width: 2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 20,
+                color: selected ? AppColors.paper : AppColors.inkFaint,
+              ),
+              const SizedBox(width: AppDimens.md),
+              Expanded(
+                child: Text(
+                  position.label,
+                  style: theme.textTheme.titleMedium?.copyWith(color: foreground),
+                ),
+              ),
+              if (!selected)
+                RoleBadge(skillLevel: null, position: position, compact: true),
             ],
           ),
         ),

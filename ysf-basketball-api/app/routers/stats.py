@@ -10,13 +10,13 @@ from app.dependencies import get_existing_session
 from app.models import Session
 from app.repositories import attendees_repo, sessions_repo, teams_repo
 from app.schemas import SessionStats
-from app.security import require_organizer
+from app.security import require_admin
 from app.services.statistics import build_stats
 
 router = APIRouter(
     prefix="/sessions",
     tags=["stats"],
-    dependencies=[Depends(require_organizer)],
+    dependencies=[Depends(require_admin)],
 )
 
 

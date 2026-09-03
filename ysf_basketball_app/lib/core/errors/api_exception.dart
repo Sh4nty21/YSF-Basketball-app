@@ -36,7 +36,7 @@ class ApiException implements Exception {
       );
 
   factory ApiException.unauthorized() => const ApiException(
-        'The organizer key was rejected. Check it in Settings.',
+        'Your session has ended. Please log in again.',
         statusCode: 401,
         kind: ApiErrorKind.unauthorized,
       );

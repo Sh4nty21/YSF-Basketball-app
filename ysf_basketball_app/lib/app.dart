@@ -2,33 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
-import 'providers/app_providers.dart';
-import 'screens/passcode_gate_screen.dart';
-import 'screens/session_list_screen.dart';
+import 'providers/auth_providers.dart';
+import 'screens/change_password_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/sports_hub_screen.dart';
 
 /// Root widget: theme + first screen.
 ///
-/// Navigation uses plain [Navigator] pushes in the flow given by spec
-/// Section 7: Session List -> New Session -> Session Dashboard -> Team Rosters
-/// -> Session Stats. No routing package needed for a stack this shallow.
-///
-/// The very first screen depends on whether this device has already entered
-/// the passcode: [PasscodeGateScreen] once, then straight to
-/// [SessionListScreen] on every launch after.
+/// The very first screen now depends on real admin-account auth state
+/// (NEW_PROJECT_PLAN.md), not the old shared-passcode flag:
+/// [LoginScreen] -> [ChangePasswordScreen] (only if forced) -> [SportsHubScreen].
+/// Navigation below that is still plain [Navigator] pushes — no routing
+/// package needed for a stack this shallow.
 class YsfApp extends ConsumerWidget {
   const YsfApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unlocked = ref.watch(appLockProvider);
+    final auth = ref.watch(authProvider);
+
+    final home = switch (auth.status) {
+      AuthStatus.checking => const _SplashScreen(),
+      AuthStatus.loggedOut => const LoginScreen(),
+      AuthStatus.mustChangePassword => const ChangePasswordScreen(),
+      AuthStatus.loggedIn => const SportsHubScreen(),
+    };
 
     return MaterialApp(
-      title: 'Elevate YSF Basketball',
+      title: 'Elevate YSF',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: unlocked
-          ? const SessionListScreen()
-          : const PasscodeGateScreen(),
+      home: home,
       builder: (context, child) {
         // Keep layout predictable if the organizer's phone uses a very large
         // system font — courtside legibility matters, overflow does not help.
@@ -43,6 +47,19 @@ class YsfApp extends ConsumerWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
+    );
+  }
+}
+
+/// Brief placeholder while a persisted session token is validated against
+/// the backend on launch (`AuthController._restore`).
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

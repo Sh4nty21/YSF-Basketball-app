@@ -42,4 +42,9 @@ abstract final class AppColors {
 
   /// Neutral fourth stat-tile tone, for counts that aren't the headline stat.
   static const Color tileGrey = Color(0xFFE2E2E2);
+
+  /// Volleyball's accent on the Sports Hub, matching the design mockup's
+  /// `tertiary-container` (`YSF-Basketball-app-design/.../DESIGN.md`) — the
+  /// palette's one non-red/black/white hue, reserved for that single tile.
+  static const Color tertiary = Color(0xFF0077B4);
 }

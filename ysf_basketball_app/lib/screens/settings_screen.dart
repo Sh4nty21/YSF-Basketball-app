@@ -4,41 +4,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../providers/app_providers.dart';
+import '../providers/auth_providers.dart';
 import '../widgets/brand.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/section_label.dart';
 import '../widgets/sticker_card.dart';
 import '../widgets/ysf_button.dart';
-import 'passcode_gate_screen.dart';
+import 'admin_management_screen.dart';
 
-/// Connection diagnostics and the app lock — there is nothing else to
-/// configure. The backend address and API key are fixed in `AppConfig`, not
-/// entered by the organizer.
+/// Connection diagnostics, the signed-in account, and logout. The backend
+/// address is still fixed in `AppConfig`, not entered by the organizer — the
+/// old shared-passcode "Lock app" flow is gone, replaced by real per-admin
+/// login (NEW_PROJECT_PLAN.md).
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _lockApp(BuildContext context, WidgetRef ref) async {
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Lock the app?',
-      message: 'You will need the passcode again to get back in — useful '
-          'before handing the phone to someone else.',
-      confirmLabel: 'Yes, lock it',
-      icon: Icons.lock_rounded,
+      title: 'Log out?',
+      message: 'You\'ll need your username and password again to get back in.',
+      confirmLabel: 'Yes, log out',
+      icon: Icons.logout_rounded,
     );
     if (!confirmed || !context.mounted) return;
 
-    await ref.read(appLockProvider.notifier).lock();
-    if (!context.mounted) return;
-    await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const PasscodeGateScreen()),
-      (route) => false,
-    );
+    await ref.read(authProvider.notifier).logout();
+    // app.dart watches authProvider and swaps to LoginScreen automatically —
+    // no manual navigation needed here.
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final health = ref.watch(healthCheckProvider);
+    final admin = ref.watch(authProvider).admin;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -59,6 +58,44 @@ class SettingsScreen extends ConsumerWidget {
               style: theme.textTheme.headlineMedium?.copyWith(fontSize: 27),
             ),
             const SizedBox(height: AppDimens.xl),
+
+            if (admin != null) ...[
+              const SectionLabel('Signed in as'),
+              StickerCard(
+                padding: const EdgeInsets.all(AppDimens.lg),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: AppColors.accentTint,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.person_rounded, color: AppColors.accent),
+                    ),
+                    const SizedBox(width: AppDimens.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            admin.coachName,
+                            style: theme.textTheme.titleLarge?.copyWith(fontSize: 16),
+                          ),
+                          Text(
+                            '@${admin.username} · ${admin.role.label}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimens.xl),
+            ],
+
             const SectionLabel('Connection status'),
             StickerCard(
               padding: const EdgeInsets.all(AppDimens.lg),
@@ -116,12 +153,25 @@ class SettingsScreen extends ConsumerWidget {
               onPressed: () => ref.invalidate(healthCheckProvider),
             ),
             const SizedBox(height: AppDimens.xl),
-            const SectionLabel('Access'),
+
+            if (admin?.isSuperAdmin ?? false) ...[
+              const SectionLabel('Administration'),
+              YsfSecondaryButton(
+                label: 'Manage admins',
+                icon: Icons.badge_rounded,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AdminManagementScreen()),
+                ),
+              ),
+              const SizedBox(height: AppDimens.xl),
+            ],
+
+            const SectionLabel('Account'),
             YsfSecondaryButton(
-              label: 'Lock app',
-              icon: Icons.lock_rounded,
+              label: 'Log out',
+              icon: Icons.logout_rounded,
               danger: true,
-              onPressed: () => _lockApp(context, ref),
+              onPressed: () => _logout(context, ref),
             ),
           ],
         ),

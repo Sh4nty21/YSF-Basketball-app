@@ -7,35 +7,42 @@ import '../models/enums.dart';
 import '../models/session.dart';
 import 'app_providers.dart';
 
-/// Session history — `GET /sessions`.
-final sessionListProvider =
-    AsyncNotifierProvider<SessionListController, List<Session>>(
+/// Session history for one sport — `GET /sessions?sport=...`. Parameterized
+/// by [Sport] since the Sports Hub landing screen always enters a specific
+/// sport (NEW_PROJECT_PLAN.md).
+final sessionListProvider = AsyncNotifierProvider.family<
+    SessionListController, List<Session>, Sport>(
   SessionListController.new,
 );
 
-class SessionListController extends AsyncNotifier<List<Session>> {
+class SessionListController
+    extends FamilyAsyncNotifier<List<Session>, Sport> {
   @override
-  Future<List<Session>> build() {
-    return ref.watch(apiServiceProvider).fetchSessions();
+  Future<List<Session>> build(Sport arg) {
+    return ref.watch(apiServiceProvider).fetchSessions(sport: arg);
   }
 
   /// Pull-to-refresh. Keeps the old list on screen while reloading so the
   /// organizer never stares at an empty page.
   Future<void> refresh() async {
     state = await AsyncValue.guard(
-      () => ref.read(apiServiceProvider).fetchSessions(),
+      () => ref.read(apiServiceProvider).fetchSessions(sport: arg),
     );
   }
 
-  /// Creates a session, then refreshes the list so it appears immediately.
+  /// Creates a session for this sport, then refreshes the list so it
+  /// appears immediately.
   Future<Session> create({
     required DateTime date,
     required TeamFormat format,
+    BadmintonMode? badmintonMode,
     String? weekLabel,
   }) async {
     final session = await ref.read(apiServiceProvider).createSession(
           date: date,
+          sport: arg,
           format: format,
+          badmintonMode: badmintonMode,
           weekLabel: weekLabel,
         );
     await refresh();
@@ -65,7 +72,9 @@ class SessionController extends AutoDisposeFamilyAsyncNotifier<Session, int> {
     final updated =
         await ref.read(apiServiceProvider).updateSession(arg, format: format);
     state = AsyncValue.data(updated);
-    await ref.read(sessionListProvider.notifier).refresh();
+    // sessionListProvider is per-sport (family) — invalidate every cached
+    // sport's list rather than plumb Sport through here just for this.
+    ref.invalidate(sessionListProvider);
   }
 
   /// Open/close check-in. Closing stops the public QR form from accepting new
@@ -74,7 +83,7 @@ class SessionController extends AutoDisposeFamilyAsyncNotifier<Session, int> {
     final updated =
         await ref.read(apiServiceProvider).updateSession(arg, status: status);
     state = AsyncValue.data(updated);
-    await ref.read(sessionListProvider.notifier).refresh();
+    ref.invalidate(sessionListProvider);
   }
 }
 

@@ -15,13 +15,13 @@ from app.models import Session
 from app.presenters import teams_to_schema
 from app.repositories import attendees_repo, results_repo, teams_repo
 from app.schemas import AddPlayerRequest, GameResultCreate, TeamsResponse
-from app.security import require_organizer
-from app.services import team_balancer
+from app.security import require_admin
+from app.services import badminton_balancer, team_balancer, volleyball_balancer
 
 router = APIRouter(
     prefix="/sessions",
     tags=["teams"],
-    dependencies=[Depends(require_organizer)],
+    dependencies=[Depends(require_admin)],
 )
 
 
@@ -48,16 +48,42 @@ def generate_teams(
     session: Session = Depends(get_existing_session),
     db: DbSession = Depends(get_db),
 ) -> TeamsResponse:
-    """Full reshuffle via snake draft — **destructive**.
+    """Full reshuffle — **destructive**, drafting algorithm dispatched by
+    `session.sport` (NEW_PROJECT_PLAN.md — each sport has its own rules,
+    already spelled out in that doc):
+
+    * basketball — skill-balanced snake draft across `team_format`.
+    * volleyball — role-quota drafting (2 OH / 2 MB / 1 Setter / 1 Opposite
+      per team), no skill balancing at all.
+    * badminton — skill-tier-segregated pairing; Singles and Doubles share
+      the same pairing shape, they just mean something different.
 
     Every existing placement for this session (including manual late-arrival
     adds) is discarded and rebuilt. The Flutter app asks for confirmation
     before calling this.
     """
-    players = teams_repo.players_for_session(db, session.id)
     try:
-        drafted = team_balancer.generate_teams(players, session.team_format)
-    except team_balancer.BalancingError as exc:
+        if session.sport == "basketball":
+            players = teams_repo.players_for_session(db, session.id)
+            drafted = team_balancer.generate_teams(players, session.team_format)
+        elif session.sport == "volleyball":
+            players = teams_repo.volleyball_players_for_session(db, session.id)
+            drafted = volleyball_balancer.generate_volleyball_teams(players)
+        elif session.sport == "badminton":
+            # Badminton keys off skill_level, exactly like `Player` already
+            # shapes it — reused as-is, no separate repo query needed.
+            players = teams_repo.players_for_session(db, session.id)
+            drafted = badminton_balancer.generate_badminton_pairs(players)
+        else:  # pragma: no cover - guarded by the sport CHECK constraint
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"unknown sport: {session.sport!r}",
+            )
+    except (
+        team_balancer.BalancingError,
+        volleyball_balancer.BalancingError,
+        badminton_balancer.BalancingError,
+    ) as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     teams_repo.replace_teams(db, session.id, drafted)
@@ -73,7 +99,23 @@ def add_player(
     """Manual fallback for the same "late registration" placement that
     already happens automatically at check-in — fills whichever team still
     has a vacant slot (last one first), or starts a fresh team if every
-    existing one is full. No skill balancing: disturbs nobody else."""
+    existing one is full. No skill balancing: disturbs nobody else.
+
+    Basketball fills any vacant seat; volleyball fills the team that still
+    needs this player's exact position. Badminton's tier-segregated pairing
+    doesn't have a "vacant slot" concept yet — late arrivals there stay in
+    the unassigned queue; regenerate to include them.
+    """
+    if session.sport not in ("basketball", "volleyball"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Adding a single late player isn't available yet for "
+                f"{session.sport} — regenerate teams to include everyone "
+                f"who has checked in."
+            ),
+        )
+
     attendee = attendees_repo.get(db, payload.attendee_id)
     if attendee is None or attendee.session_id != session.id:
         raise HTTPException(
@@ -86,9 +128,15 @@ def add_player(
             detail=f"{attendee.name} is already on a team for this session.",
         )
 
-    target_team_id = teams_repo.place_if_possible(
-        db, session.id, attendee.id, session.team_format
-    )
+    if session.sport == "basketball":
+        target_team_id = teams_repo.place_if_possible(
+            db, session.id, attendee.id, session.team_format
+        )
+    else:
+        target_team_id = teams_repo.place_volleyball_if_possible(
+            db, session.id, attendee.id, attendee.position
+        )
+
     if target_team_id is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

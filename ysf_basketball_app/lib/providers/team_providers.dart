@@ -103,7 +103,10 @@ class TeamsController
     ref.invalidate(unassignedAttendeesProvider(arg));
     ref.invalidate(statsProvider(arg));
     ref.invalidate(attendeesProvider(arg));
-    await ref.read(sessionListProvider.notifier).refresh();
+    // sessionListProvider is now per-sport (family) — invalidate every
+    // cached sport's list rather than plumb Sport through here just for
+    // this refresh.
+    ref.invalidate(sessionListProvider);
   }
 }
 

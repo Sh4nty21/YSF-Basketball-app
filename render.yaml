@@ -40,9 +40,14 @@ services:
       - key: CHECKIN_BASE_URL
         sync: false
 
-      # Optional: a long random string locks organizer endpoints. Put the same
-      # value in the Flutter app's Organizer Key field.
-      - key: ORGANIZER_API_KEY
+      # The ONLY way the first super-admin account gets created — on startup,
+      # if the admins table is still empty, one super-admin account is made
+      # from these two values. Log in, you'll be forced to change the
+      # password immediately, then appoint every other admin from inside the
+      # app itself. Safe to leave these set permanently afterward.
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
 
       - key: CORS_ORIGINS

@@ -11,9 +11,12 @@ import os
 
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["MIGRATION_DATABASE_URL"] = ""
-os.environ["ORGANIZER_API_KEY"] = ""
 os.environ["MIN_AGE"] = "13"
 os.environ["MAX_AGE"] = "22"
+# Left unset deliberately: bootstrap_first_super_admin() is a no-op without
+# these, and the `client` fixture below seeds its own test admin directly.
+os.environ["BOOTSTRAP_ADMIN_USERNAME"] = ""
+os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -25,6 +28,11 @@ from app.config import settings  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app import models  # noqa: E402,F401  (registers tables on Base.metadata)
+from app.models import Admin  # noqa: E402
+from app.security import hash_password  # noqa: E402
+
+TEST_ADMIN_USERNAME = "test-admin"
+TEST_ADMIN_PASSWORD = "Test-Password-123"
 
 
 @pytest.fixture()
@@ -61,7 +69,52 @@ def db_session(db_engine):
 
 @pytest.fixture()
 def client(db_session):
-    """TestClient wired to the throwaway SQLite session."""
+    """TestClient wired to the throwaway SQLite session.
+
+    Every organizer endpoint now requires a logged-in admin (see
+    NEW_PROJECT_PLAN.md) — there is no more "auth off by default" mode. This
+    fixture seeds one active super-admin directly (a test-only shortcut; a
+    real deployment's first super-admin comes from
+    ``BOOTSTRAP_ADMIN_USERNAME``/``PASSWORD``, never a direct DB insert) and
+    logs in through the real ``/auth/login`` endpoint so every test gets a
+    working ``Authorization`` header for free, without needing to know this
+    plumbing exists. Tests that specifically exercise auth (see
+    ``test_admin_auth.py``) build their own unauthenticated/second-admin
+    clients instead of relying on this default.
+    """
+
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        admin = Admin(
+            username=TEST_ADMIN_USERNAME,
+            display_name="Test Admin",
+            password_hash=hash_password(TEST_ADMIN_PASSWORD),
+            role="super_admin",
+            is_active=True,
+            must_change_password=False,
+        )
+        db_session.add(admin)
+        db_session.commit()
+
+        login_response = test_client.post(
+            f"{settings.api_prefix}/auth/login",
+            json={"username": TEST_ADMIN_USERNAME, "password": TEST_ADMIN_PASSWORD},
+        )
+        assert login_response.status_code == 200, login_response.text
+        test_client.headers["Authorization"] = f"Bearer {login_response.json()['token']}"
+
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def raw_client(db_session):
+    """Same throwaway DB as ``client``, but with no admin seeded and no
+    ``Authorization`` header pre-set — for tests that exercise login itself,
+    unauthenticated access, or a specific admin's own token."""
 
     def override_get_db():
         yield db_session

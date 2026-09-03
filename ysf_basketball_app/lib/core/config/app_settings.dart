@@ -1,28 +1,22 @@
 import 'package:flutter/foundation.dart';
 
 /// What [ApiService] needs to reach the backend — always [AppConfig]'s
-/// hardcoded values in this app; never user-entered or persisted.
+/// hardcoded [AppSettings.baseUrl] in this app; never user-entered.
+///
+/// Auth is no longer a fixed setting: it's a session token obtained by
+/// logging in, which changes over the app's lifetime (login/logout/
+/// revocation) — see [ApiService.setAuthToken] and `AuthController`.
 @immutable
 class AppSettings {
-  const AppSettings({
-    required this.baseUrl,
-    required this.organizerKey,
-  });
+  const AppSettings({required this.baseUrl});
 
   /// Full API base including the version prefix.
   final String baseUrl;
 
-  /// Matches the backend's `ORGANIZER_API_KEY`.
-  final String organizerKey;
-
-  bool get hasKey => organizerKey.trim().isNotEmpty;
-
   @override
   bool operator ==(Object other) =>
-      other is AppSettings &&
-      other.baseUrl == baseUrl &&
-      other.organizerKey == organizerKey;
+      other is AppSettings && other.baseUrl == baseUrl;
 
   @override
-  int get hashCode => Object.hash(baseUrl, organizerKey);
+  int get hashCode => baseUrl.hashCode;
 }

@@ -81,6 +81,9 @@ class _DashboardState extends ConsumerState<_Dashboard> {
 
   int get _sessionId => widget.session.id;
 
+  bool get _isBasketball => widget.session.sport == Sport.basketball;
+  bool get _isVolleyball => widget.session.sport == Sport.volleyball;
+
   AttendeeListController get _attendees =>
       ref.read(attendeesProvider(_sessionId).notifier);
 
@@ -104,8 +107,8 @@ class _DashboardState extends ConsumerState<_Dashboard> {
           ? 'This rebuilds every team from scratch for all '
                 '${attendees.length} players.'
                 '${lateAdds > 0 ? ' The $lateAdds late registration${lateAdds == 1 ? '' : 's'} will be shuffled back in.' : ''}'
-          : 'The backend will snake-draft all ${attendees.length} players into '
-                'balanced ${widget.session.format.label} teams.',
+          : 'The backend will draft all ${attendees.length} players into '
+                '${_isBasketball ? 'balanced ${widget.session.format.label} teams' : _isVolleyball ? 'role-based teams (2 OH, 2 MB, Setter, Opposite)' : 'skill-matched ${widget.session.badmintonMode?.label.toLowerCase() ?? 'badminton'} pairs'}.',
       confirmLabel: hasExisting ? 'Yes, reshuffle' : 'Generate teams',
       icon: Icons.shuffle_rounded,
       destructive: hasExisting,
@@ -134,7 +137,10 @@ class _DashboardState extends ConsumerState<_Dashboard> {
     _attendees.pausePolling();
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ManualAddAttendeeScreen(sessionId: _sessionId),
+        builder: (_) => ManualAddAttendeeScreen(
+          sessionId: _sessionId,
+          sport: widget.session.sport,
+        ),
       ),
     );
     _attendees.resumePolling();
@@ -218,6 +224,7 @@ class _DashboardState extends ConsumerState<_Dashboard> {
             builder: (context, constraints) {
               final liveCount = _LiveCountCard(
                 attendees: list,
+                sport: session.sport,
                 format: session.format,
                 isLoading: attendees.isLoading,
                 isOpen: session.isOpen,
@@ -340,10 +347,12 @@ class _DashboardState extends ConsumerState<_Dashboard> {
 
           const SizedBox(height: AppDimens.xl),
 
-          // ── Format ──────────────────────────────────────────────────────
-          const SectionLabel('Team format'),
-          FormatSelector(value: session.format, onChanged: _changeFormat),
-          const SizedBox(height: AppDimens.xl),
+          // ── Format (basketball only for now) ──────────────────────────
+          if (_isBasketball) ...[
+            const SectionLabel('Team format'),
+            FormatSelector(value: session.format, onChanged: _changeFormat),
+            const SizedBox(height: AppDimens.xl),
+          ],
 
           // ── Live list ───────────────────────────────────────────────────
           SectionLabel(
@@ -576,21 +585,37 @@ class _TallActionButton extends StatelessWidget {
 class _LiveCountCard extends StatelessWidget {
   const _LiveCountCard({
     required this.attendees,
+    required this.sport,
     required this.format,
     required this.isLoading,
     required this.isOpen,
   });
 
   final List<Attendee> attendees;
+  final Sport sport;
   final TeamFormat format;
   final bool isLoading;
   final bool isOpen;
+
+  /// Basketball's `format.playersPerTeam` doesn't apply to volleyball (6-
+  /// per-team role recipe) or badminton (2-person pairs).
+  int get _teamSize => switch (sport) {
+    Sport.basketball => format.playersPerTeam,
+    Sport.volleyball => 6,
+    Sport.badminton => 2,
+  };
+
+  String get _teamNoun => switch (sport) {
+    Sport.basketball => format.label,
+    Sport.volleyball => 'volleyball',
+    Sport.badminton => 'badminton',
+  };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final total = attendees.length;
-    final teamsWorth = total == 0 ? 0 : (total / format.playersPerTeam).ceil();
+    final teamsWorth = total == 0 ? 0 : (total / _teamSize).ceil();
 
     return StickerCard(
       child: Column(
@@ -621,25 +646,42 @@ class _LiveCountCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppDimens.md),
-          Row(
-            children: [
-              for (final level in SkillLevel.values)
-                Expanded(
-                  child: _TierCount(
-                    level: level,
+          if (sport == Sport.volleyball)
+            Wrap(
+              spacing: AppDimens.md,
+              runSpacing: AppDimens.sm,
+              children: [
+                for (final position in VolleyballPosition.values)
+                  _TierCount(
+                    label: position.label,
+                    color: AppColors.tertiary,
                     count: attendees
-                        .where((attendee) => attendee.skillLevel == level)
+                        .where((attendee) => attendee.position == position)
                         .length,
                   ),
-                ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                for (final level in SkillLevel.values)
+                  Expanded(
+                    child: _TierCount(
+                      label: level.label,
+                      color: SkillLevelBadge.chartColorFor(level),
+                      count: attendees
+                          .where((attendee) => attendee.skillLevel == level)
+                          .length,
+                    ),
+                  ),
+              ],
+            ),
           if (total > 0) ...[
             const SizedBox(height: AppDimens.md),
             const Divider(),
             const SizedBox(height: AppDimens.sm),
             Text(
-              'Enough for $teamsWorth ${format.label} team${teamsWorth == 1 ? '' : 's'}',
+              'Enough for $teamsWorth $_teamNoun team${teamsWorth == 1 ? '' : 's'}',
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -650,9 +692,10 @@ class _LiveCountCard extends StatelessWidget {
 }
 
 class _TierCount extends StatelessWidget {
-  const _TierCount({required this.level, required this.count});
+  const _TierCount({required this.label, required this.color, required this.count});
 
-  final SkillLevel level;
+  final String label;
+  final Color color;
   final int count;
 
   @override
@@ -663,14 +706,12 @@ class _TierCount extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(
-                color: SkillLevelBadge.chartColorFor(level),
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 5),
             Text(
@@ -680,7 +721,7 @@ class _TierCount extends StatelessWidget {
           ],
         ),
         Text(
-          level.label.toLowerCase(),
+          label.toLowerCase(),
           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11.5),
         ),
       ],

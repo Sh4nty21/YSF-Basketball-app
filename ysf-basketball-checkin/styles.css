@@ -18,6 +18,10 @@
   --accent: #d53125;          /* sampled from "YSF Logo.jpg" */
   --accent-dark: #a8231a;
   --accent-tint: #fdeceb;
+  /* Volleyball/badminton accents — match the organizer app's AppColors
+     (tertiary/warning) so a sport reads the same color everywhere. */
+  --tertiary: #0077b4;
+  --warning: #facc15;
   --paper: #ffffff;
   --surface: #f7f6f4;
   --line: #e4e2de;
@@ -101,6 +105,27 @@ body {
   box-shadow: 3px 3px 0 0 var(--ink);
   margin-bottom: 16px;
 }
+
+/* Which sport this session is — set by app.js from GET
+   /sessions/{id}/checkin-info, never guessed, so it always matches the
+   actual session (NEW_PROJECT_PLAN.md). Colors mirror the Sports Hub tiles
+   in the organizer app. */
+.sport-badge {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  margin-bottom: 10px;
+}
+
+.sport-badge--basketball { background: var(--accent); color: var(--paper); }
+.sport-badge--volleyball { background: var(--tertiary); color: var(--paper); }
+.sport-badge--badminton { background: var(--warning); color: var(--ink); }
 
 .logo-frame {
   display: inline-block;

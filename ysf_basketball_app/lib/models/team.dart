@@ -8,6 +8,7 @@ class TeamMember {
     required this.name,
     required this.age,
     required this.skillLevel,
+    required this.position,
     required this.addedVia,
     this.wins = 0,
     this.losses = 0,
@@ -16,7 +17,12 @@ class TeamMember {
   final int attendeeId;
   final String name;
   final int age;
-  final SkillLevel skillLevel;
+
+  /// Null for volleyball (has [position] instead).
+  final SkillLevel? skillLevel;
+
+  /// Volleyball only.
+  final VolleyballPosition? position;
   final AddedVia addedVia;
 
   /// Same session-wide, reshuffle-surviving tally as [Attendee.wins]/[losses].
@@ -31,7 +37,10 @@ class TeamMember {
       attendeeId: json['attendee_id'] as int,
       name: json['name'] as String,
       age: (json['age'] as num).toInt(),
-      skillLevel: SkillLevel.fromWire(json['skill_level'] as String),
+      skillLevel: json['skill_level'] == null
+          ? null
+          : SkillLevel.fromWire(json['skill_level'] as String),
+      position: VolleyballPosition.fromWireOrNull(json['position'] as String?),
       addedVia: AddedVia.fromWire(json['added_via'] as String),
       wins: (json['wins'] as num?)?.toInt() ?? 0,
       losses: (json['losses'] as num?)?.toInt() ?? 0,
@@ -93,7 +102,9 @@ class TeamsSnapshot {
   factory TeamsSnapshot.fromJson(Map<String, dynamic> json) {
     return TeamsSnapshot(
       sessionId: json['session_id'] as int,
-      format: TeamFormat.fromWire(json['team_format'] as String),
+      // Null for volleyball/badminton, which don't use this concept —
+      // falls back to a value rather than crash; unused by those sports.
+      format: TeamFormat.fromWire(json['team_format'] as String? ?? '5v5'),
       teams: (json['teams'] as List<dynamic>? ?? const [])
           .map((team) => Team.fromJson(team as Map<String, dynamic>))
           .toList(growable: false),

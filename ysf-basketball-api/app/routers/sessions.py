@@ -11,12 +11,12 @@ from app.models import Session
 from app.presenters import session_to_schema
 from app.repositories import sessions_repo
 from app.schemas import SessionCreate, SessionRead, SessionUpdate
-from app.security import require_organizer
+from app.security import require_admin
 
 router = APIRouter(
     prefix="/sessions",
     tags=["sessions"],
-    dependencies=[Depends(require_organizer)],
+    dependencies=[Depends(require_admin)],
 )
 
 
@@ -31,10 +31,12 @@ def create_session(payload: SessionCreate, db: DbSession = Depends(get_db)) -> S
 def list_sessions(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    sport: str | None = Query(default=None, description="Filter to one sport."),
     db: DbSession = Depends(get_db),
 ) -> list[SessionRead]:
-    """Session history, most recent first."""
-    sessions = sessions_repo.list_all(db, limit=limit, offset=offset)
+    """Session history, most recent first. The Sports Hub landing screen
+    passes ``sport`` to scope this to whichever sport the admin picked."""
+    sessions = sessions_repo.list_all(db, limit=limit, offset=offset, sport=sport)
     counts = sessions_repo.counts_for_many(db, [s.id for s in sessions])
     return [
         session_to_schema(s, *counts.get(s.id, (0, 0)))

@@ -18,5 +18,5 @@ window.YSF_CONFIG = {
 
   // Shown on the confirmation screen.
   programName: "Elevate YSF",
-  tagline: "Weekly Basketball Fellowship",
+  tagline: "Weekly Sports Fellowship",
 };

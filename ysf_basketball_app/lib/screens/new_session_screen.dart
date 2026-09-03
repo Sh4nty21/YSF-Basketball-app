@@ -13,11 +13,23 @@ import '../widgets/section_label.dart';
 import '../widgets/sticker_card.dart';
 import '../widgets/ysf_button.dart';
 
-/// Create a session: date + team format + optional label (spec Section 7).
+/// Create a session for one sport: date + a sport-specific mode picker +
+/// optional label.
+///
+/// * Basketball picks a team format (5v5/4v4/3v3).
+/// * Badminton picks Singles or Doubles.
+/// * Volleyball has no per-session picker at all — role composition is
+///   fixed (2 OH, 2 MB, Setter, Opposite per team).
+///
+/// A fixed default `team_format` is still sent even for volleyball/badminton
+/// (unused by those sports) purely to avoid null-handling churn elsewhere in
+/// the app — see the note on `Session.format`.
 ///
 /// Pops with the created [Session] so the caller can jump to its dashboard.
 class NewSessionScreen extends ConsumerStatefulWidget {
-  const NewSessionScreen({super.key});
+  const NewSessionScreen({super.key, required this.sport});
+
+  final Sport sport;
 
   @override
   ConsumerState<NewSessionScreen> createState() => _NewSessionScreenState();
@@ -28,6 +40,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   DateTime _date = DateTime.now();
   TeamFormat _format = TeamFormat.fiveVsFive;
+  BadmintonMode _badmintonMode = BadmintonMode.doubles;
   bool _submitting = false;
 
   @override
@@ -58,9 +71,13 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
     final label = _labelController.text.trim();
     try {
-      final session = await ref.read(sessionListProvider.notifier).create(
+      final session = await ref
+          .read(sessionListProvider(widget.sport).notifier)
+          .create(
             date: _date,
             format: _format,
+            badmintonMode:
+                widget.sport == Sport.badminton ? _badmintonMode : null,
             weekLabel: label.isEmpty ? _labelSuggestion : label,
           );
       if (!mounted) return;
@@ -77,8 +94,11 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final isBasketball = widget.sport == Sport.basketball;
+    final isBadminton = widget.sport == Sport.badminton;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('New session')),
+      appBar: AppBar(title: Text('New ${widget.sport.label.toLowerCase()} session')),
       body: ListView(
         padding: const EdgeInsets.all(AppDimens.screen),
         children: [
@@ -88,8 +108,17 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           ),
           const SizedBox(height: AppDimens.xs),
           Text(
-            'Pick the date and the format. You can change the format later, but '
-            'teams will need regenerating if you do.',
+            switch (widget.sport) {
+              Sport.basketball =>
+                'Pick the date and the format. You can change the format '
+                    'later, but teams will need regenerating if you do.',
+              Sport.badminton =>
+                'Pick the date and Singles or Doubles for this session.',
+              Sport.volleyball =>
+                'Pick the date. Teams are drafted by position — 2 Outside '
+                    'Hitters, 2 Middle Blockers, a Setter and an Opposite '
+                    'per team.',
+            },
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: AppDimens.xl),
@@ -127,15 +156,29 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           ),
           const SizedBox(height: AppDimens.xl),
 
-          // ── Format ──────────────────────────────────────────────────────
-          const SectionLabel('Team format'),
-          FormatSelector(
-            value: _format,
-            onChanged: _submitting
-                ? null
-                : (format) => setState(() => _format = format),
-          ),
-          const SizedBox(height: AppDimens.xl),
+          // ── Format (basketball) ─────────────────────────────────────────
+          if (isBasketball) ...[
+            const SectionLabel('Team format'),
+            FormatSelector(
+              value: _format,
+              onChanged: _submitting
+                  ? null
+                  : (format) => setState(() => _format = format),
+            ),
+            const SizedBox(height: AppDimens.xl),
+          ],
+
+          // ── Mode (badminton) ─────────────────────────────────────────────
+          if (isBadminton) ...[
+            const SectionLabel('Mode'),
+            _BadmintonModePicker(
+              value: _badmintonMode,
+              onChanged: _submitting
+                  ? null
+                  : (mode) => setState(() => _badmintonMode = mode),
+            ),
+            const SizedBox(height: AppDimens.xl),
+          ],
 
           // ── Label ───────────────────────────────────────────────────────
           const SectionLabel('Label (optional)'),
@@ -159,6 +202,58 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             isBusy: _submitting,
             onPressed: _submitting ? null : _submit,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Segmented Singles / Doubles picker — same visual pattern as
+/// [FormatSelector], for badminton's per-session mode.
+class _BadmintonModePicker extends StatelessWidget {
+  const _BadmintonModePicker({required this.value, required this.onChanged});
+
+  final BadmintonMode value;
+  final ValueChanged<BadmintonMode>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd + 4),
+        border: Border.all(color: AppColors.line, width: 2),
+      ),
+      child: Row(
+        children: [
+          for (final mode in BadmintonMode.values)
+            Expanded(
+              child: Semantics(
+                selected: mode == value,
+                button: true,
+                child: GestureDetector(
+                  onTap: onChanged == null ? null : () => onChanged!(mode),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 130),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: mode == value ? AppColors.ink : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                    ),
+                    child: Text(
+                      mode.label,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: mode == value ? AppColors.paper : AppColors.inkSoft,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

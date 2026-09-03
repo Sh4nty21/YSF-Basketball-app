@@ -21,6 +21,28 @@ SESSION_STATUSES: tuple[str, ...] = ("open", "closed")
 ATTENDEE_SOURCES: tuple[str, ...] = ("qr", "manual")
 ADDED_VIA_VALUES: tuple[str, ...] = ("generate", "manual-add")
 
+# Multi-sport expansion (NEW_PROJECT_PLAN.md).
+SPORTS: tuple[str, ...] = ("basketball", "volleyball", "badminton")
+
+# Volleyball check-in collects a position instead of a skill level — skill
+# is deliberately not used for volleyball team generation at all.
+VOLLEYBALL_POSITIONS: tuple[str, ...] = (
+    "outside_hitter",
+    "middle_blocker",
+    "setter",
+    "opposite",
+)
+
+# Badminton's per-session mode, chosen the same way basketball picks a team
+# format — Singles (tier-segregated 1-on-1 pairing) or Doubles (tier-
+# segregated 2-person teams).
+BADMINTON_MODES: tuple[str, ...] = ("singles", "doubles")
+
+# Admin accounts (NEW_PROJECT_PLAN.md). Exactly two roles: super_admin can
+# create/revoke other admins, admin has full equal session/roster/team
+# functionality across every sport.
+ADMIN_ROLES: tuple[str, ...] = ("super_admin", "admin")
+
 
 def _normalise_driver(url: str) -> str:
     """Force SQLAlchemy to use the psycopg 3 driver.
@@ -60,8 +82,14 @@ class Settings(BaseSettings):
     min_age: int = 13
     max_age: int = 22
 
-    # Empty string == organizer endpoints are open (MVP default, spec §2).
-    organizer_api_key: str = ""
+    # One-time bootstrap for the very first super-admin account. There is no
+    # public registration route and every other way to create an admin
+    # requires an existing super-admin, so this env-var pair is the only way
+    # the first account can ever come to exist. Checked once at startup
+    # (app.main.bootstrap_first_super_admin) and only takes effect while the
+    # admins table is still empty — safe to leave set permanently afterward.
+    bootstrap_admin_username: str = ""
+    bootstrap_admin_password: str = ""
 
     checkin_base_url: str = "http://localhost:5500"
 
@@ -92,10 +120,6 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
-    def auth_enabled(self) -> bool:
-        return bool(self.organizer_api_key.strip())
-
-    @property
     def is_sqlite(self) -> bool:
         return self.sqlalchemy_url.startswith("sqlite")
 
@@ -114,11 +138,15 @@ settings = get_settings()
 
 __all__ = [
     "ADDED_VIA_VALUES",
+    "ADMIN_ROLES",
     "ATTENDEE_SOURCES",
+    "BADMINTON_MODES",
     "SESSION_STATUSES",
     "SKILL_LEVELS",
+    "SPORTS",
     "TEAM_FORMATS",
     "TEAM_RESULTS",
+    "VOLLEYBALL_POSITIONS",
     "Settings",
     "get_settings",
     "settings",

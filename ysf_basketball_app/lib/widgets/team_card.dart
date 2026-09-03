@@ -4,6 +4,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../models/enums.dart';
 import '../models/team.dart';
+import 'role_badge.dart';
 import 'skill_level_badge.dart';
 import 'sticker_card.dart';
 
@@ -227,7 +228,7 @@ class _MemberRow extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: SkillLevelBadge.chartColorFor(member.skillLevel),
+              color: RoleBadge.accentColor(member.skillLevel, member.position),
               shape: BoxShape.circle,
             ),
           ),
@@ -242,6 +243,14 @@ class _MemberRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (member.position != null) ...[
+            RoleBadge(
+              skillLevel: member.skillLevel,
+              position: member.position,
+              compact: true,
+            ),
+            const SizedBox(width: AppDimens.sm),
+          ],
           if (member.isLateAdd)
             Padding(
               padding: const EdgeInsets.only(right: AppDimens.sm),

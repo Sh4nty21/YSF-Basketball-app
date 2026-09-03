@@ -20,6 +20,11 @@ from app.services.team_balancer import (
     team_label,
     team_size_for_format,
 )
+from app.services.volleyball_balancer import (
+    TeamPositionCounts,
+    VolleyballPlayer,
+    pick_vacant_team_for_position,
+)
 
 
 def list_with_members(db: DbSession, session_id: int) -> list[Team]:
@@ -51,6 +56,19 @@ def players_for_session(db: DbSession, session_id: int) -> list[Player]:
         .order_by(Attendee.id.asc())
     ).all()
     return [Player(attendee_id=attendee_id, skill_level=skill) for attendee_id, skill in rows]
+
+
+def volleyball_players_for_session(db: DbSession, session_id: int) -> list[VolleyballPlayer]:
+    """Every attendee of the session, reduced to what the volleyball
+    balancer needs. Attendees with no position set are skipped — shouldn't
+    happen given `attendee_validation`, but this stays defensive rather
+    than crash the draft."""
+    rows = db.execute(
+        select(Attendee.id, Attendee.position)
+        .where(Attendee.session_id == session_id, Attendee.position.is_not(None))
+        .order_by(Attendee.id.asc())
+    ).all()
+    return [VolleyballPlayer(attendee_id=attendee_id, position=position) for attendee_id, position in rows]
 
 
 def replace_teams(
@@ -151,6 +169,62 @@ def place_if_possible(
         # Every existing team is full — this new team becomes the tail that
         # subsequent late registrations fill, until it's full too.
         team = Team(session_id=session_id, team_name=team_label(len(sizes)))
+        db.add(team)
+        db.flush()  # assigns team.id
+        target_team_id = team.id
+
+    add_member(db, target_team_id, attendee_id)
+    return target_team_id
+
+
+def volleyball_team_position_counts(db: DbSession, session_id: int) -> list[TeamPositionCounts]:
+    """Every existing team for this session, with its current per-position
+    headcount — includes teams with zero members of a given (or any)
+    position, so a freshly-created empty overflow team still shows up."""
+    team_ids = list(
+        db.scalars(
+            select(Team.id).where(Team.session_id == session_id).order_by(Team.id.asc())
+        )
+    )
+    if not team_ids:
+        return []
+
+    rows = db.execute(
+        select(TeamMember.team_id, Attendee.position, func.count(TeamMember.id))
+        .join(Attendee, Attendee.id == TeamMember.attendee_id)
+        .where(TeamMember.team_id.in_(team_ids))
+        .group_by(TeamMember.team_id, Attendee.position)
+    ).all()
+
+    counts_by_team: dict[int, dict[str, int]] = {team_id: {} for team_id in team_ids}
+    for team_id, position, count in rows:
+        if position is not None:
+            counts_by_team[team_id][position] = int(count)
+
+    return [TeamPositionCounts(team_id=tid, counts=counts_by_team[tid]) for tid in team_ids]
+
+
+def place_volleyball_if_possible(
+    db: DbSession,
+    session_id: int,
+    attendee_id: int,
+    position: str,
+) -> int | None:
+    """Volleyball's equivalent of :func:`place_if_possible` — auto-slots a
+    just-created attendee into whichever existing team still needs their
+    exact position, if rosters already exist. A no-op (returns ``None``)
+    before the first generate, same as the basketball version.
+    """
+    counts = volleyball_team_position_counts(db, session_id)
+    if not counts:
+        return None
+
+    target_team_id = pick_vacant_team_for_position(counts, position)
+
+    if target_team_id is None:
+        # Every existing team already has its quota of this position — a
+        # new team becomes the tail that subsequent late arrivals fill.
+        team = Team(session_id=session_id, team_name=team_label(len(counts)))
         db.add(team)
         db.flush()  # assigns team.id
         target_team_id = team.id

@@ -111,6 +111,94 @@ enum AddedVia {
   }
 }
 
+/// `basketball` / `volleyball` / `badminton` — NEW_PROJECT_PLAN.md's
+/// multi-sport expansion. Volleyball/badminton team-generation logic isn't
+/// built on the backend yet; sessions can already be created and tagged.
+enum Sport {
+  basketball('basketball', 'Basketball'),
+  volleyball('volleyball', 'Volleyball'),
+  badminton('badminton', 'Badminton');
+
+  const Sport(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static Sport fromWire(String value) {
+    return Sport.values.firstWhere(
+      (sport) => sport.wire == value,
+      orElse: () => Sport.basketball,
+    );
+  }
+}
+
+/// `super_admin` / `admin` — exactly two roles (NEW_PROJECT_PLAN.md).
+/// `superAdmin` can manage other admin accounts; `admin` has full, equal
+/// functionality across every sport.
+enum AdminRole {
+  superAdmin('super_admin', 'Super Admin'),
+  admin('admin', 'Admin');
+
+  const AdminRole(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static AdminRole fromWire(String value) {
+    return AdminRole.values.firstWhere(
+      (role) => role.wire == value,
+      orElse: () => AdminRole.admin,
+    );
+  }
+}
+
+/// Volleyball position, collected at check-in in place of skill level —
+/// skill is deliberately not used for volleyball team generation at all
+/// (NEW_PROJECT_PLAN.md).
+enum VolleyballPosition {
+  outsideHitter('outside_hitter', 'Outside Hitter'),
+  middleBlocker('middle_blocker', 'Middle Blocker'),
+  setter('setter', 'Setter'),
+  opposite('opposite', 'Opposite');
+
+  const VolleyballPosition(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static VolleyballPosition fromWire(String value) {
+    return VolleyballPosition.values.firstWhere(
+      (position) => position.wire == value,
+      orElse: () => VolleyballPosition.outsideHitter,
+    );
+  }
+
+  static VolleyballPosition? fromWireOrNull(String? value) {
+    if (value == null) return null;
+    return fromWire(value);
+  }
+}
+
+/// Badminton's per-session mode — Singles or Doubles, chosen the same way
+/// basketball picks a team format.
+enum BadmintonMode {
+  singles('singles', 'Singles'),
+  doubles('doubles', 'Doubles');
+
+  const BadmintonMode(this.wire, this.label);
+
+  final String wire;
+  final String label;
+
+  static BadmintonMode? fromWireOrNull(String? value) {
+    if (value == null) return null;
+    return BadmintonMode.values.firstWhere(
+      (mode) => mode.wire == value,
+      orElse: () => BadmintonMode.doubles,
+    );
+  }
+}
+
 /// `win` / `lose` — a single recorded game outcome for a team.
 ///
 /// Unlike the other enums, a team's overall result is never a single value:

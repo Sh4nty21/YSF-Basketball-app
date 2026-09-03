@@ -21,6 +21,7 @@ def create(
         name=payload.name,
         age=payload.age,
         skill_level=payload.skill_level,
+        position=payload.position,
         source=source,
         device_id=payload.device_id,
     )

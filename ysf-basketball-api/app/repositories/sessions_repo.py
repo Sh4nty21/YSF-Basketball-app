@@ -15,7 +15,9 @@ def create(db: DbSession, payload: SessionCreate) -> Session:
     session = Session(
         session_date=payload.session_date,
         week_label=payload.week_label,
+        sport=payload.sport,
         team_format=payload.team_format,
+        badminton_mode=payload.badminton_mode,
         status="open",
     )
     db.add(session)
@@ -28,14 +30,15 @@ def get(db: DbSession, session_id: int) -> Session | None:
     return db.get(Session, session_id)
 
 
-def list_all(db: DbSession, limit: int = 200, offset: int = 0) -> list[Session]:
-    """History, most recent first (spec Section 5)."""
-    stmt = (
-        select(Session)
-        .order_by(Session.session_date.desc(), Session.id.desc())
-        .limit(limit)
-        .offset(offset)
-    )
+def list_all(
+    db: DbSession, limit: int = 200, offset: int = 0, sport: str | None = None
+) -> list[Session]:
+    """History, most recent first (spec Section 5). Optionally scoped to one
+    sport — the Sports Hub landing screen lists sessions per sport."""
+    stmt = select(Session).order_by(Session.session_date.desc(), Session.id.desc())
+    if sport is not None:
+        stmt = stmt.where(Session.sport == sport)
+    stmt = stmt.limit(limit).offset(offset)
     return list(db.scalars(stmt))
 
 

@@ -8,10 +8,12 @@ deliberately free of any decision-making.
 from __future__ import annotations
 
 from app.config import settings
-from app.models import Attendee, GameResult, Session, Team
+from app.models import Admin, AuditLogEntry, Attendee, GameResult, Session, Team
 from app.repositories import attendees_repo
 from app.schemas import (
+    AdminRead,
     AttendeeRead,
+    AuditLogEntryRead,
     GameResultPlayerRead,
     GameResultRead,
     SessionRead,
@@ -35,7 +37,9 @@ def session_to_schema(
         id=session.id,
         session_date=session.session_date,
         week_label=session.week_label,
+        sport=session.sport,
         team_format=session.team_format,
+        badminton_mode=session.badminton_mode,
         status=session.status,
         created_at=session.created_at,
         attendee_count=attendee_count,
@@ -56,6 +60,7 @@ def attendee_to_schema(
         name=attendee.name,
         age=attendee.age,
         skill_level=attendee.skill_level,
+        position=attendee.position,
         source=attendee.source,
         checked_in_at=attendee.checked_in_at,
         team_id=team_id,
@@ -74,6 +79,7 @@ def team_to_schema(team: Team, tally: WinLossTally | None = None) -> TeamRead:
             name=member.attendee.name,
             age=member.attendee.age,
             skill_level=member.attendee.skill_level,
+            position=member.attendee.position,
             added_via=member.added_via,
             wins=tally.get(member.attendee.id, (0, 0))[0],
             losses=tally.get(member.attendee.id, (0, 0))[1],
@@ -111,4 +117,38 @@ def game_result_to_schema(record: GameResult) -> GameResultRead:
             for link in record.players
             if link.attendee is not None
         ],
+    )
+
+
+def sport_tags_to_list(sport_tags: str | None) -> list[str]:
+    if not sport_tags:
+        return []
+    return [tag.strip() for tag in sport_tags.split(",") if tag.strip()]
+
+
+def sport_tags_to_column(tags: list[str]) -> str | None:
+    cleaned = [tag.strip() for tag in tags if tag.strip()]
+    return ",".join(cleaned) if cleaned else None
+
+
+def admin_to_schema(admin: Admin) -> AdminRead:
+    return AdminRead(
+        id=admin.id,
+        username=admin.username,
+        display_name=admin.display_name,
+        role=admin.role,
+        is_active=admin.is_active,
+        must_change_password=admin.must_change_password,
+        sport_tags=sport_tags_to_list(admin.sport_tags),
+        created_at=admin.created_at,
+    )
+
+
+def audit_log_entry_to_schema(entry: AuditLogEntry) -> AuditLogEntryRead:
+    return AuditLogEntryRead(
+        id=entry.id,
+        actor_display_name=entry.actor_display_name,
+        action=entry.action,
+        detail=entry.detail,
+        created_at=entry.created_at,
     )

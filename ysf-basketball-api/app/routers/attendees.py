@@ -11,12 +11,13 @@ from app.models import Session
 from app.presenters import attendee_to_schema
 from app.repositories import attendees_repo, results_repo, teams_repo
 from app.schemas import AttendeeCreate, AttendeeRead
-from app.security import require_organizer
+from app.security import require_admin
+from app.services.attendee_validation import validate_attendee_for_sport
 
 router = APIRouter(
     prefix="/sessions",
     tags=["attendees"],
-    dependencies=[Depends(require_organizer)],
+    dependencies=[Depends(require_admin)],
 )
 
 
@@ -32,6 +33,12 @@ def add_attendee(
 ) -> AttendeeRead:
     """Organizer backup entry — records source='manual'."""
 
+    sport_error = validate_attendee_for_sport(session.sport, payload)
+    if sport_error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=sport_error
+        )
+
     attendee = attendees_repo.create(
         db,
         session.id,
@@ -39,10 +46,11 @@ def add_attendee(
         source="manual",
     )
     db.refresh(attendee)
-    # Same auto-placement as public check-in: if rosters already exist, slot
-    # this person straight into a vacant slot ("Late registration") instead
-    # of leaving them for a second manual add-player step.
-    teams_repo.place_if_possible(db, session.id, attendee.id, session.team_format)
+    # Same auto-placement as public check-in — see the note in checkin.py.
+    if session.sport == "basketball":
+        teams_repo.place_if_possible(db, session.id, attendee.id, session.team_format)
+    elif session.sport == "volleyball":
+        teams_repo.place_volleyball_if_possible(db, session.id, attendee.id, attendee.position)
     db.refresh(attendee)
     return attendee_to_schema(attendee)
 

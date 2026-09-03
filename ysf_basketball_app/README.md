@@ -1,6 +1,6 @@
 # ysf_basketball_app
 
-Organizer tool for the Elevate YSF weekly basketball fellowship.
+Organizer tool for the Elevate YSF weekly sports fellowship.
 
 ## Getting Started
 

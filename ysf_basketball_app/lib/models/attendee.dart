@@ -8,6 +8,7 @@ class Attendee {
     required this.name,
     required this.age,
     required this.skillLevel,
+    required this.position,
     required this.source,
     required this.checkedInAt,
     required this.teamId,
@@ -21,7 +22,13 @@ class Attendee {
   final int sessionId;
   final String name;
   final int age;
-  final SkillLevel skillLevel;
+
+  /// Null for volleyball attendees — they have [position] instead. Never
+  /// null for basketball/badminton.
+  final SkillLevel? skillLevel;
+
+  /// Volleyball only. Null for every other sport.
+  final VolleyballPosition? position;
   final AttendeeSource source;
   final DateTime? checkedInAt;
 
@@ -50,7 +57,10 @@ class Attendee {
       sessionId: json['session_id'] as int,
       name: json['name'] as String,
       age: (json['age'] as num).toInt(),
-      skillLevel: SkillLevel.fromWire(json['skill_level'] as String),
+      skillLevel: json['skill_level'] == null
+          ? null
+          : SkillLevel.fromWire(json['skill_level'] as String),
+      position: VolleyballPosition.fromWireOrNull(json['position'] as String?),
       source: AttendeeSource.fromWire(json['source'] as String),
       checkedInAt: json['checked_in_at'] == null
           ? null
@@ -65,20 +75,27 @@ class Attendee {
 }
 
 /// Body for `POST /checkin` and `POST /attendees`.
+///
+/// Exactly one of [skillLevel] / [position] should be set, matching the
+/// sport of the session this is submitted to — the backend enforces which
+/// one is required (`app.services.attendee_validation`).
 class NewAttendee {
   const NewAttendee({
     required this.name,
     required this.age,
-    required this.skillLevel,
+    this.skillLevel,
+    this.position,
   });
 
   final String name;
   final int age;
-  final SkillLevel skillLevel;
+  final SkillLevel? skillLevel;
+  final VolleyballPosition? position;
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'age': age,
-        'skill_level': skillLevel.wire,
+        if (skillLevel != null) 'skill_level': skillLevel!.wire,
+        if (position != null) 'position': position!.wire,
       };
 }

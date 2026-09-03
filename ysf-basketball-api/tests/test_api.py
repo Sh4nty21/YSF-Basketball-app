@@ -18,7 +18,9 @@ def test_health_reports_ok(client):
     body = client.get("/health").json()
     assert body["status"] == "ok"
     assert body["database"] == "connected"
-    assert body["auth_required"] is False
+    # Every organizer endpoint requires a logged-in admin now — there is no
+    # more "auth off by default" mode (NEW_PROJECT_PLAN.md).
+    assert body["auth_required"] is True
 
 
 def test_create_and_fetch_session(client):

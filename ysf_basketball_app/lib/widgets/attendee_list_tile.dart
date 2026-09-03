@@ -4,7 +4,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_dimens.dart';
 import '../models/attendee.dart';
 import '../models/enums.dart';
-import 'skill_level_badge.dart';
+import 'role_badge.dart';
 import 'sticker_card.dart';
 
 /// One row in the live check-in list.
@@ -37,7 +37,7 @@ class AttendeeListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor = SkillLevelBadge.chartColorFor(attendee.skillLevel);
+    final accentColor = RoleBadge.accentColor(attendee.skillLevel, attendee.position);
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(
@@ -46,7 +46,11 @@ class AttendeeListTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _ArrivalMarker(index: index, level: attendee.skillLevel),
+          _ArrivalMarker(
+            index: index,
+            skillLevel: attendee.skillLevel,
+            position: attendee.position,
+          ),
 
           const SizedBox(width: AppDimens.md),
 
@@ -138,7 +142,11 @@ class AttendeeListTile extends StatelessWidget {
 
           const SizedBox(width: AppDimens.sm),
 
-          SkillLevelBadge(level: attendee.skillLevel, compact: true),
+          RoleBadge(
+            skillLevel: attendee.skillLevel,
+            position: attendee.position,
+            compact: true,
+          ),
 
           // Delete button.
           if (onDelete != null) ...[
@@ -185,14 +193,19 @@ class AttendeeListTile extends StatelessWidget {
 
 /// Arrival number in a circle tinted by skill tier.
 class _ArrivalMarker extends StatelessWidget {
-  const _ArrivalMarker({required this.index, required this.level});
+  const _ArrivalMarker({
+    required this.index,
+    required this.skillLevel,
+    required this.position,
+  });
 
   final int index;
-  final SkillLevel level;
+  final SkillLevel? skillLevel;
+  final VolleyballPosition? position;
 
   @override
   Widget build(BuildContext context) {
-    final color = SkillLevelBadge.chartColorFor(level);
+    final color = RoleBadge.accentColor(skillLevel, position);
 
     return Container(
       width: 34,

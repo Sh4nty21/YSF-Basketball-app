@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -18,16 +19,21 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config import (
     ADDED_VIA_VALUES,
+    ADMIN_ROLES,
     ATTENDEE_SOURCES,
+    BADMINTON_MODES,
     SESSION_STATUSES,
     SKILL_LEVELS,
+    SPORTS,
     TEAM_FORMATS,
     TEAM_RESULTS,
+    VOLLEYBALL_POSITIONS,
 )
 from app.database import Base
 
@@ -44,12 +50,34 @@ class Session(Base):
     __table_args__ = (
         CheckConstraint(_in_clause("team_format", TEAM_FORMATS), name="ck_sessions_team_format"),
         CheckConstraint(_in_clause("status", SESSION_STATUSES), name="ck_sessions_status"),
+        CheckConstraint(_in_clause("sport", SPORTS), name="ck_sessions_sport"),
+        CheckConstraint(
+            "badminton_mode IS NULL OR "
+            + _in_clause("badminton_mode", BADMINTON_MODES),
+            name="ck_sessions_badminton_mode",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     session_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     week_label: Mapped[str | None] = mapped_column(String(50))
-    team_format: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Multi-sport expansion. Defaults to basketball so every pre-existing row
+    # backfills cleanly. Volleyball/badminton team-generation logic is not
+    # built yet (see NEW_PROJECT_PLAN.md) — for now this only tags/filters
+    # sessions by sport.
+    sport: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="basketball", server_default="basketball"
+    )
+    # NULL for sports that don't use the 5v5/4v4/3v3 concept (volleyball uses
+    # a fixed role recipe instead; badminton uses singles/doubles). Required
+    # only for basketball — enforced in the Pydantic schema, not the DB,
+    # since a DB-level "required unless sport=X" check needs a CHECK
+    # expression referencing another column, which SQLite's batch-mode ALTER
+    # path used elsewhere in this codebase doesn't need for this case.
+    team_format: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Badminton only — Singles or Doubles, chosen per-session the same way
+    # basketball picks a team_format. NULL for every other sport.
+    badminton_mode: Mapped[str | None] = mapped_column(String(10), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -80,7 +108,14 @@ class Attendee(Base):
     __tablename__ = "attendees"
     __table_args__ = (
         CheckConstraint("age > 0 AND age < 100", name="ck_attendees_age"),
-        CheckConstraint(_in_clause("skill_level", SKILL_LEVELS), name="ck_attendees_skill_level"),
+        CheckConstraint(
+            "skill_level IS NULL OR " + _in_clause("skill_level", SKILL_LEVELS),
+            name="ck_attendees_skill_level",
+        ),
+        CheckConstraint(
+            "position IS NULL OR " + _in_clause("position", VOLLEYBALL_POSITIONS),
+            name="ck_attendees_position",
+        ),
         CheckConstraint(_in_clause("source", ATTENDEE_SOURCES), name="ck_attendees_source"),
         Index("ix_attendees_session_device", "session_id", "device_id"),
     )
@@ -91,7 +126,13 @@ class Attendee(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
-    skill_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    # NULL for volleyball (which uses `position` instead — skill isn't used
+    # for volleyball team generation at all); required by the API layer for
+    # basketball/badminton, but not enforceable as a DB NOT NULL since the
+    # same column serves every sport.
+    skill_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Volleyball only. NULL for every other sport.
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
     source: Mapped[str] = mapped_column(String(10), nullable=False, default="qr", server_default="qr")
     # Client-generated id (localStorage on the web form) used only to enforce
     # the per-session self-check-in cap. Never used to identify a person.
@@ -206,3 +247,94 @@ class GameResultPlayer(Base):
 
     game_result: Mapped[GameResult] = relationship(back_populates="players")
     attendee: Mapped[Attendee] = relationship()
+
+
+class Admin(Base):
+    """A person who can operate the app — appointed only, never self-registered.
+
+    See NEW_PROJECT_PLAN.md: exactly two roles (``super_admin`` / ``admin``),
+    equal functionality across every sport, revocation via ``is_active`` (not
+    row deletion, so audit-log/session history stays intact).
+    """
+
+    __tablename__ = "admins"
+    __table_args__ = (
+        UniqueConstraint("username", name="uq_admins_username"),
+        CheckConstraint(_in_clause("role", ADMIN_ROLES), name="ck_admins_role"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="admin", server_default="admin")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
+    # Always true for a newly-appointed admin — forces the password-change
+    # screen before anything else in the app is reachable (plan: "forced
+    # password change upon login").
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    # Display-only labels shown as pill badges on the admin's profile card
+    # (e.g. "Basketball,Volleyball"), comma-joined. Cosmetic only — NEVER
+    # wired to a permission check (plan: every admin has equal rights
+    # regardless of these tags).
+    sport_tags: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    sessions: Mapped[list["AdminSession"]] = relationship(
+        back_populates="admin", cascade="all, delete-orphan"
+    )
+
+
+class AdminSession(Base):
+    """One issued login session for one admin.
+
+    Deliberately a server-side row, not a stateless JWT: the plan's
+    revocation requirement ("session ends immediately, not just can't log in
+    next time") needs a token that can be killed by checking DB state on
+    every request. In practice this is checked via ``Admin.is_active`` — an
+    admin's every existing session dies the instant they're deactivated,
+    with no need to enumerate/delete individual session rows for that case.
+    """
+
+    __tablename__ = "admin_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_id: Mapped[int] = mapped_column(
+        ForeignKey("admins.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # sha256 hex digest of the raw token. The raw token is sent to the client
+    # exactly once, at login, and never stored — same reasoning as a hashed
+    # password: a DB read alone should never hand out a live credential.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    # Set on explicit logout (kills this one session without touching the
+    # admin's other logged-in devices). Deactivation doesn't set this — it
+    # doesn't need to, since is_active is checked directly on every request.
+    revoked_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    admin: Mapped[Admin] = relationship(back_populates="sessions")
+
+
+class AuditLogEntry(Base):
+    """Append-only trail of admin-account lifecycle events.
+
+    Deliberately minimal (plan: "just a simple audit trail") — account
+    creation/revocation/reactivation, password changes, and login
+    success/failure. Not a general-purpose activity log for session/roster
+    actions.
+    """
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_admin_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
+    )
+    # Snapshot so the entry still reads sensibly if the actor account is
+    # later removed — same pattern as GameResult.team_name.
+    actor_display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())

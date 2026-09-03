@@ -15,12 +15,12 @@ from app.models import Session
 from app.presenters import game_result_to_schema
 from app.repositories import results_repo
 from app.schemas import GameResultRead
-from app.security import require_organizer
+from app.security import require_admin
 
 router = APIRouter(
     prefix="/sessions",
     tags=["results"],
-    dependencies=[Depends(require_organizer)],
+    dependencies=[Depends(require_admin)],
 )
 
 

@@ -10,8 +10,8 @@ import '../models/team.dart';
 import '../providers/session_providers.dart';
 import '../providers/team_providers.dart';
 import '../widgets/confirm_dialog.dart';
+import '../widgets/role_badge.dart';
 import '../widgets/section_label.dart';
-import '../widgets/skill_level_badge.dart';
 import '../widgets/state_views.dart';
 import '../widgets/sticker_card.dart';
 import '../widgets/team_card.dart';
@@ -119,6 +119,7 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
   @override
   Widget build(BuildContext context) {
     final teams = ref.watch(teamsProvider(widget.sessionId));
+    final session = ref.watch(sessionProvider(widget.sessionId)).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -160,6 +161,7 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
         ),
         AsyncData(:final value) => _Rosters(
           snapshot: value,
+          sport: session?.sport ?? Sport.basketball,
           busyAttendeeId: _busyAttendeeId,
           busyTeamId: _busyTeamId,
           regenerating: _regenerating,
@@ -177,9 +179,20 @@ class _TeamRostersScreenState extends ConsumerState<TeamRostersScreen> {
   }
 }
 
+/// Actual per-team headcount target — [TeamsSnapshot.format] is basketball-
+/// specific and meaningless for volleyball (6-per-team role recipe) or
+/// badminton (2-person pairs), so this can't just read `format.playersPerTeam`
+/// for every sport.
+int _expectedTeamSize(Sport sport, TeamFormat format) => switch (sport) {
+  Sport.basketball => format.playersPerTeam,
+  Sport.volleyball => 6,
+  Sport.badminton => 2,
+};
+
 class _Rosters extends StatelessWidget {
   const _Rosters({
     required this.snapshot,
+    required this.sport,
     required this.busyAttendeeId,
     required this.busyTeamId,
     required this.regenerating,
@@ -190,6 +203,7 @@ class _Rosters extends StatelessWidget {
   });
 
   final TeamsSnapshot snapshot;
+  final Sport sport;
   final int? busyAttendeeId;
   final int? busyTeamId;
   final bool regenerating;
@@ -231,9 +245,10 @@ class _Rosters extends StatelessWidget {
         children: [
           PageTitle(
             'Rosters',
-            subtitle:
-                '${snapshot.playersOnTeams} players · '
-                '${snapshot.format.label} format',
+            subtitle: sport == Sport.basketball
+                ? '${snapshot.playersOnTeams} players · '
+                      '${snapshot.format.label} format'
+                : '${snapshot.playersOnTeams} players · ${sport.label}',
           ),
           const SizedBox(height: AppDimens.lg),
 
@@ -287,8 +302,13 @@ class _Rosters extends StatelessWidget {
                       AppDimens.md,
                     ),
                     child: Text(
-                      'Each player is slotted into the team that needs their '
-                      'skill level most. Nobody already placed is moved.',
+                      sport == Sport.volleyball
+                          ? 'Each player is slotted into the team that '
+                                'still needs their position. Nobody already '
+                                'placed is moved.'
+                          : 'Each player is slotted into the team that needs '
+                                'their skill level most. Nobody already '
+                                'placed is moved.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -317,7 +337,7 @@ class _Rosters extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: AppDimens.lg),
                         child: TeamCard(
                           team: team,
-                          playersPerTeam: snapshot.format.playersPerTeam,
+                          playersPerTeam: _expectedTeamSize(sport, snapshot.format),
                           recording: busyTeamId == team.id,
                           onRecordResult:
                               busyTeamId != null && busyTeamId != team.id
@@ -338,7 +358,7 @@ class _Rosters extends StatelessWidget {
                       width: (constraints.maxWidth - AppDimens.lg) / 2,
                       child: TeamCard(
                         team: team,
-                        playersPerTeam: snapshot.format.playersPerTeam,
+                        playersPerTeam: _expectedTeamSize(sport, snapshot.format),
                         recording: busyTeamId == team.id,
                         onRecordResult:
                             busyTeamId != null && busyTeamId != team.id
@@ -416,7 +436,11 @@ class _UnassignedRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    SkillLevelBadge(level: attendee.skillLevel, compact: true),
+                    RoleBadge(
+                      skillLevel: attendee.skillLevel,
+                      position: attendee.position,
+                      compact: true,
+                    ),
                     const SizedBox(width: AppDimens.sm),
                     Text(
                       'Age ${attendee.age}',

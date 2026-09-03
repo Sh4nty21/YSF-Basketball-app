@@ -62,7 +62,11 @@
     submit: document.getElementById("submitBtn"),
     nameError: document.getElementById("nameError"),
     ageError: document.getElementById("ageError"),
+    sportBadge: document.getElementById("sportBadge"),
+    skillField: document.getElementById("skillField"),
     skillError: document.getElementById("skillError"),
+    positionField: document.getElementById("positionField"),
+    positionError: document.getElementById("positionError"),
     formError: document.getElementById("formError"),
     successTitle: document.getElementById("successTitle"),
     successBody: document.getElementById("successBody"),
@@ -71,6 +75,13 @@
     footerBrand: document.getElementById("footerBrand"),
     sessionTag: document.getElementById("sessionTag"),
   };
+
+  /* ── Sport-conditional field: volleyball collects a position instead of
+     a skill level (skill isn't used for volleyball team generation at all).
+     Defaults to the skill-level field showing, matching every sport except
+     volleyball, so a failed /checkin-info fetch degrades to today's
+     behaviour rather than breaking the form. ───────────────────────────── */
+  var sessionSport = null; // set once /checkin-info resolves
 
   /* ── Session id from the QR URL: ?session=12 ───────────────────────── */
   function readSessionId() {
@@ -115,6 +126,7 @@
     setError(el.nameError, el.name, "");
     setError(el.ageError, el.age, "");
     setError(el.skillError, null, "");
+    setError(el.positionError, null, "");
     setError(el.formError, null, "");
   }
 
@@ -129,6 +141,36 @@
   function selectedSkill() {
     var checked = el.form.querySelector('input[name="skill_level"]:checked');
     return checked ? checked.value : "";
+  }
+
+  function selectedPosition() {
+    var checked = el.form.querySelector('input[name="position"]:checked');
+    return checked ? checked.value : "";
+  }
+
+  function isVolleyball() {
+    return sessionSport === "volleyball";
+  }
+
+  var SPORT_LABELS = {
+    basketball: "Basketball",
+    volleyball: "Volleyball",
+    badminton: "Badminton"
+  };
+
+  /* Shows a label naming this session's actual sport — stays hidden if the
+     sport is unknown (e.g. /checkin-info failed) rather than ever risk
+     showing the wrong one. */
+  function applySportBadge() {
+    if (!el.sportBadge) return;
+    var label = SPORT_LABELS[sessionSport];
+    if (!label) {
+      hide(el.sportBadge);
+      return;
+    }
+    el.sportBadge.textContent = label;
+    el.sportBadge.className = "sport-badge sport-badge--" + sessionSport;
+    show(el.sportBadge);
   }
 
   /* ── Client-side validation (the backend enforces the same rules) ──── */
@@ -158,12 +200,55 @@
       ok = false;
     }
 
-    if (!selectedSkill()) {
-      setError(el.skillError, null, "Pick one skill level.");
-      ok = false;
+    var payload = { name: name, age: age, device_id: deviceId() };
+
+    if (isVolleyball()) {
+      if (!selectedPosition()) {
+        setError(el.positionError, null, "Pick your position.");
+        ok = false;
+      } else {
+        payload.position = selectedPosition();
+      }
+    } else {
+      if (!selectedSkill()) {
+        setError(el.skillError, null, "Pick one skill level.");
+        ok = false;
+      } else {
+        payload.skill_level = selectedSkill();
+      }
     }
 
-    return ok ? { name: name, age: age, skill_level: selectedSkill(), device_id: deviceId() } : null;
+    return ok ? payload : null;
+  }
+
+  /* ── Show the field this session's sport actually needs, and the label
+     naming it ──────────────────────────────────────────────────────────── */
+  function applySportFields() {
+    if (isVolleyball()) {
+      hide(el.skillField);
+      show(el.positionField);
+    } else {
+      show(el.skillField);
+      hide(el.positionField);
+    }
+    applySportBadge();
+  }
+
+  /* ── Learn this session's sport before the form is usable — public,
+     reveals nothing beyond sport/status (app/routers/checkin.py). A failed
+     fetch (offline, old cached page) just leaves the default skill-level
+     field showing, same as before this existed. ───────────────────────── */
+  async function loadSessionSport() {
+    try {
+      var response = await fetch(apiBase() + "/sessions/" + sessionId + "/checkin-info");
+      if (!response.ok) return;
+      var body = await response.json();
+      sessionSport = body && body.sport ? body.sport : null;
+    } catch (_) {
+      // Network failure — keep the default (non-volleyball) fields showing.
+    } finally {
+      applySportFields();
+    }
   }
 
   /* ── Turn a failed response into something a teenager can act on ───── */
@@ -278,6 +363,14 @@
     el.form.querySelectorAll('input[name="skill_level"]').forEach(function (radio) {
       radio.addEventListener("change", function () { setError(el.skillError, null, ""); });
     });
+    el.form.querySelectorAll('input[name="position"]').forEach(function (radio) {
+      radio.addEventListener("change", function () { setError(el.positionError, null, ""); });
+    });
+
+    // Learn this session's sport (async) before deciding skill vs. position —
+    // starts with the skill field showing, swapped out if this turns out to
+    // be a volleyball session.
+    loadSessionSport();
   }
 
   if (document.readyState === "loading") {
