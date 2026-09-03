@@ -14,7 +14,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -206,42 +205,6 @@ class NoCacheStaticFiles(StaticFiles):
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
         return response
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ADMIN APP (Flutter web build)
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# The organizer app has no deploy pipeline of its own — Render's build step
-# has no Flutter SDK, so this is the checked-in output of
-# `flutter build web --base-href /admin/` (ysf_basketball_app/build/web/),
-# regenerated and re-committed by hand whenever the app changes (see the
-# .gitignore exception in ysf_basketball_app/ for why this directory is
-# committed at all despite /build/ being ignored everywhere else).
-#
-# Mounted BEFORE the check-in form's catch-all "/" mount below — Starlette
-# matches mounts in registration order, and "/" would otherwise swallow
-# every "/admin/..." request before this one ever got a chance.
-# ─────────────────────────────────────────────────────────────────────────────
-
-_ADMIN_APP_DIR = (
-    Path(__file__).resolve().parents[2] / "ysf_basketball_app" / "build" / "web"
-)
-
-if _ADMIN_APP_DIR.is_dir():
-
-    # A bare "/admin" (no trailing slash) doesn't match the mount below —
-    # Starlette's Mount only matches "/admin/..." — so without this it 404s,
-    # which is exactly the URL shape someone would naturally type or share.
-    @app.get("/admin", include_in_schema=False)
-    def _admin_app_redirect() -> RedirectResponse:
-        return RedirectResponse(url="/admin/")
-
-    app.mount(
-        "/admin",
-        StaticFiles(directory=str(_ADMIN_APP_DIR), html=True),
-        name="admin-app",
-    )
 
 
 if _CHECKIN_DIR.is_dir():

@@ -31,11 +31,12 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-# Exception: the compiled web build IS committed and deployed — Render's
-# native-Python build step has no Flutter SDK to build this itself, so the
-# production admin app at /admin is served from this checked-in output.
-# Regenerate with `flutter build web --base-href /admin/` after any change
-# and re-commit; nothing rebuilds it automatically.
+# Exception: the compiled web build IS committed and deployed — a separate
+# Render service (a Static Site, not the FastAPI backend) auto-deploys this
+# exact directory at its own root whenever it changes on `main`. Regenerate
+# with `flutter build web` (root base-href — this is served at "/" on its
+# own domain, not nested under any path) after any app change and re-commit;
+# nothing rebuilds it automatically.
 !/build/web/
 /coverage/
 
