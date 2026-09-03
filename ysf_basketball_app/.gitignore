@@ -31,6 +31,12 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# Exception: the compiled web build IS committed and deployed — Render's
+# native-Python build step has no Flutter SDK to build this itself, so the
+# production admin app at /admin is served from this checked-in output.
+# Regenerate with `flutter build web --base-href /admin/` after any change
+# and re-commit; nothing rebuilds it automatically.
+!/build/web/
 /coverage/
 
 # Symbolication related
