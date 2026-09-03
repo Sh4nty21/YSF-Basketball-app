@@ -9,12 +9,15 @@ Interactive docs:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 from app import __version__
 from app.config import settings
@@ -88,25 +91,32 @@ for router in (
     summary="Liveness + database probe",
 )
 def health() -> dict:
-    """Used by Render/Railway health checks and by the app's connection banner."""
+    """Used by Render/Railway health checks and by the app's connection banner.
+
+    Public and unauthenticated by design (it has to be, for hosting-platform
+    health probes) — so it must never echo the raw exception back. A
+    database connection error can embed the connection string, including
+    the password, depending on the driver/failure mode; the full error is
+    logged server-side instead, where only whoever has log access can see
+    it, and the public response gets a fixed, generic message.
+    """
 
     database_ok = True
-    error: str | None = None
 
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         database_ok = False
-        error = str(exc).splitlines()[0][:200]
+        logger.exception("Health check: database connection failed")
 
     return {
         "status": "ok" if database_ok else "degraded",
         "version": __version__,
         "database": "connected" if database_ok else "unreachable",
         "auth_required": True,
-        "error": error,
+        "error": None if database_ok else "Database is unreachable. See server logs for detail.",
     }
 
 

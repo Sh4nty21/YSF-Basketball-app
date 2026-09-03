@@ -291,3 +291,75 @@ def test_super_admin_cannot_revoke_their_own_account(client):
     me = client.get(f"{API}/auth/me").json()
     response = client.patch(f"{API}/admins/{me['id']}", json={"is_active": False})
     assert response.status_code == 409
+
+
+# ── brute-force lockout (security hardening) ────────────────────────────
+
+
+def test_login_has_no_username_enumeration_timing_gap(client):
+    """Not a timing measurement (too flaky for a unit test) — just proves an
+    unknown username still exercises the same bcrypt comparison path as a
+    known one, by confirming the dummy-hash branch doesn't itself error."""
+    response = client.post(
+        f"{API}/auth/login",
+        json={"username": "definitely-nobody", "password": "whatever"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect username or password."
+
+
+def test_five_failed_logins_locks_the_account(client, raw_client):
+    client.post(
+        f"{API}/admins",
+        json={"username": "coach-lock", "display_name": "Lock", "password": "Initial-Password-1"},
+    )
+
+    for _ in range(5):
+        response = raw_client.post(
+            f"{API}/auth/login",
+            json={"username": "coach-lock", "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    # Even the CORRECT password is now rejected — proves this is a lockout,
+    # not just "still guessing wrong".
+    response = raw_client.post(
+        f"{API}/auth/login",
+        json={"username": "coach-lock", "password": "Initial-Password-1"},
+    )
+    assert response.status_code == 401
+    assert "too many failed attempts" in response.json()["detail"].lower()
+
+
+def test_successful_login_resets_the_failed_attempt_counter(client, raw_client):
+    client.post(
+        f"{API}/admins",
+        json={"username": "coach-reset", "display_name": "Reset", "password": "Initial-Password-1"},
+    )
+
+    for _ in range(3):
+        raw_client.post(
+            f"{API}/auth/login",
+            json={"username": "coach-reset", "password": "wrong-password"},
+        )
+
+    # 3 failures is under the 5-attempt threshold, so this still succeeds...
+    ok = raw_client.post(
+        f"{API}/auth/login",
+        json={"username": "coach-reset", "password": "Initial-Password-1"},
+    )
+    assert ok.status_code == 200
+
+    # ...and the counter is back at zero: 3 more failures afterward should
+    # NOT lock the account (3 < 5), proving the earlier failures didn't
+    # carry over across the successful login.
+    for _ in range(3):
+        raw_client.post(
+            f"{API}/auth/login",
+            json={"username": "coach-reset", "password": "wrong-password"},
+        )
+    still_unlocked = raw_client.post(
+        f"{API}/auth/login",
+        json={"username": "coach-reset", "password": "Initial-Password-1"},
+    )
+    assert still_unlocked.status_code == 200

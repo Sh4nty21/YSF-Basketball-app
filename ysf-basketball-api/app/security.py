@@ -19,6 +19,7 @@ password: a DB read alone should never hand out a live credential.
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import secrets
 
@@ -31,6 +32,14 @@ from app.models import Admin, AdminSession
 from app.repositories import admins_repo
 
 BEARER_PREFIX = "Bearer "
+
+# Sessions never expiring at all was a real gap for a token that, once
+# issued, lives in a mobile app's local storage indefinitely — if a device
+# were ever lost or a token otherwise leaked, it stayed valid forever. 30
+# days balances that against not forcing organizers to re-login mid-season;
+# unlike revocation (instant), this is deliberately just a ceiling, not
+# something admins interact with.
+SESSION_TTL = dt.timedelta(days=30)
 
 
 # ── passwords ────────────────────────────────────────────────────────────
@@ -105,6 +114,12 @@ def get_current_session(
 
     if session_row is None or session_row.revoked_at is not None:
         raise unauthorized
+
+    if session_row.created_at is not None:
+        age = dt.datetime.utcnow() - session_row.created_at
+        if age > SESSION_TTL:
+            admins_repo.revoke_session(db, session_row)
+            raise unauthorized
 
     admin = session_row.admin
     if admin is None or not admin.is_active:

@@ -26,21 +26,52 @@ from app.security import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# A fixed bcrypt hash of a value nobody will ever type, compared against on
+# every login for an unknown username. Without this, `admin is None` would
+# short-circuit past the (deliberately slow) bcrypt comparison entirely,
+# making a real user's response measurably slower than a nonexistent one —
+# an attacker could use that timing gap alone to enumerate valid usernames
+# without ever needing a correct password. Computed once at import time,
+# not tied to any real account.
+_TIMING_SAFE_DUMMY_HASH = hash_password(generate_session_token())
+
 
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: DbSession = Depends(get_db)) -> LoginResponse:
-    admin = admins_repo.get_by_username(db, payload.username.strip().lower())
+    username = payload.username.strip().lower()
+    admin = admins_repo.get_by_username(db, username)
 
     invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect username or password.",
     )
+    locked = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Too many failed attempts. Try again in a few minutes.",
+    )
 
-    if admin is None or not verify_password(payload.password, admin.password_hash):
+    # Always run the (slow, deliberately so) bcrypt comparison, even for an
+    # unknown username — see _TIMING_SAFE_DUMMY_HASH above.
+    comparison_hash = admin.password_hash if admin is not None else _TIMING_SAFE_DUMMY_HASH
+    password_ok = verify_password(payload.password, comparison_hash)
+
+    if admin is not None and admins_repo.is_locked_out(admin):
         admins_repo.log(
             db,
-            actor=None,
-            actor_display_name=payload.username.strip() or "(unknown)",
+            actor=admin,
+            actor_display_name=admin.display_name,
+            action="login_failed",
+            detail="account temporarily locked (too many failed attempts)",
+        )
+        raise locked
+
+    if admin is None or not password_ok:
+        if admin is not None:
+            admins_repo.register_failed_login(db, admin)
+        admins_repo.log(
+            db,
+            actor=admin,
+            actor_display_name=admin.display_name if admin is not None else (username or "(unknown)"),
             action="login_failed",
             detail="incorrect username or password",
         )
@@ -56,6 +87,7 @@ def login(payload: LoginRequest, db: DbSession = Depends(get_db)) -> LoginRespon
         )
         raise invalid
 
+    admins_repo.register_successful_login(db, admin)
     token = generate_session_token()
     admins_repo.create_session(db, admin, hash_token(token))
     admins_repo.log(

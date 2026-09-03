@@ -14,6 +14,14 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.models import Admin, AdminSession, AuditLogEntry
 
+# Brute-force lockout (security hardening). 5 consecutive failed attempts
+# locks the account for 15 minutes — deliberately per-account, not
+# per-IP: only 5-8 admins ever exist, so this is simpler than IP tracking
+# and isn't defeated by a shared/proxied network the way an IP-based limit
+# would be.
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = dt.timedelta(minutes=15)
+
 
 # ── admins ────────────────────────────────────────────────────────────────
 
@@ -69,6 +77,26 @@ def set_password(db: DbSession, admin: Admin, password_hash: str, must_change_pa
     db.commit()
     db.refresh(admin)
     return admin
+
+
+def is_locked_out(admin: Admin) -> bool:
+    return admin.locked_until is not None and admin.locked_until > dt.datetime.utcnow()
+
+
+def register_failed_login(db: DbSession, admin: Admin) -> None:
+    """Called only for a genuine bad-password attempt against a real,
+    active account — not for an unknown username (nothing to lock) or an
+    already-deactivated one (already blocked for a different reason)."""
+    admin.failed_login_attempts += 1
+    if admin.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+        admin.locked_until = dt.datetime.utcnow() + LOCKOUT_DURATION
+    db.commit()
+
+
+def register_successful_login(db: DbSession, admin: Admin) -> None:
+    admin.failed_login_attempts = 0
+    admin.locked_until = None
+    db.commit()
 
 
 # ── admin sessions ───────────────────────────────────────────────────────

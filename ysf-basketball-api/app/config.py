@@ -77,6 +77,22 @@ class Settings(BaseSettings):
     # transaction pooler (6543). Falls back to database_url when unset.
     migration_database_url: str = ""
 
+    # SECURITY NOTE (2026-09-03 audit): "*" is the default and what
+    # production currently runs with (render.yaml). This is a real, but
+    # lower-severity gap: organizer auth is a Bearer token (see
+    # security.py), not a cookie, and browsers never auto-attach an
+    # Authorization header cross-origin the way they do a cookie — so a
+    # wildcard origin here doesn't hand a malicious site a logged-in
+    # admin's credentials for free. It still allows any origin to call the
+    # public /checkin endpoints, which is expected (the check-in form is
+    # meant to be reachable from wherever it's hosted), but it also allows
+    # any origin to make preflight-passing requests against the
+    # organizer-gated endpoints (which then correctly fail on missing auth,
+    # but this is looser than necessary). Recommended follow-up: set this
+    # to the exact origin(s) the check-in form and/or a Flutter *web* build
+    # are actually served from, once those are fixed — not changed here
+    # since narrowing it blind, without knowing every real origin in use,
+    # risks breaking a legitimate deployment.
     cors_origins: str = "*"
 
     min_age: int = 13

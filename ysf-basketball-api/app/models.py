@@ -280,6 +280,15 @@ class Admin(Base):
     # wired to a permission check (plan: every admin has equal rights
     # regardless of these tags).
     sport_tags: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Brute-force lockout (security hardening, added post-launch): counts
+    # consecutive failed logins, reset to 0 on any success. Once it reaches
+    # security.MAX_FAILED_LOGIN_ATTEMPTS, locked_until is set and further
+    # logins are rejected — even with the correct password — until it
+    # passes, regardless of how many more attempts arrive.
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    locked_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
     sessions: Mapped[list["AdminSession"]] = relationship(
